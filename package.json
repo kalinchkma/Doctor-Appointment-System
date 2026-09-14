@@ -1,0 +1,21 @@
+{
+  "name": "doctor-appointment-rag",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter @doctor-app/mobile --filter @doctor-app/payload dev",
+    "dev:mobile": "pnpm --filter @doctor-app/mobile dev",
+    "dev:cms": "pnpm --filter @doctor-app/payload dev",
+    "dev:rag": "cd services/rag && go run ./cmd/server",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "docker:up": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up --build",
+    "docker:down": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml down"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@12.4.1",
+  "type": "module"
+}

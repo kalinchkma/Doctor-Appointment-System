@@ -1,0 +1,67 @@
+services:
+  # Application data only: users, doctors, slots, appointments, and CMS metadata.
+  mongodb:
+    image: mongo:8
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${PAYLOAD_MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${PAYLOAD_MONGODB_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - payload_mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username $$MONGO_INITDB_ROOT_USERNAME --password $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # RAG data only: vector embeddings and knowledge chunks. It is intentionally not host-exposed.
+  vector-mongodb:
+    image: mongodb/mongodb-atlas-local:latest
+    environment:
+      MONGODB_INITDB_ROOT_USERNAME: ${RAG_MONGODB_USERNAME}
+      MONGODB_INITDB_ROOT_PASSWORD: ${RAG_MONGODB_PASSWORD}
+    volumes:
+      - rag_vector_mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username $$MONGODB_INITDB_ROOT_USERNAME --password $$MONGODB_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  cms:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.cms
+    environment:
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      PAYLOAD_DATABASE_URI: ${PAYLOAD_DATABASE_URI}
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL}
+      RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
+      MOBILE_ORIGIN: http://localhost:5173
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rag:
+        condition: service_started
+
+  rag:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.rag
+    environment:
+      RAG_DATABASE_URI: ${RAG_DATABASE_URI}
+      RAG_DATABASE_NAME: ${RAG_DATABASE_NAME}
+      RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+    depends_on:
+      vector-mongodb:
+        condition: service_healthy
+    # No host port: only CMS can call RAG through the Compose network.
+
+volumes:
+  payload_mongodb_data:
+  rag_vector_mongodb_data:

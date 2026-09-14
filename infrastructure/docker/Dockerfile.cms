@@ -1,0 +1,12 @@
+FROM node:24-alpine AS base
+WORKDIR /workspace
+RUN corepack enable
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/payload/package.json apps/payload/package.json
+COPY apps/mobile/package.json apps/mobile/package.json
+RUN pnpm install --frozen-lockfile=false
+COPY apps/payload apps/payload
+WORKDIR /workspace/apps/payload
+RUN pnpm build
+EXPOSE 3000
+CMD ["pnpm", "start"]
