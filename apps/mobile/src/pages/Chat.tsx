@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   IonButton,
+  IonChip,
   IonContent,
   IonFooter,
   IonIcon,
@@ -12,8 +13,8 @@ import {
 import { send } from 'ionicons/icons'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor } from '../hooks/useAsync'
-import { askChatbot } from '../services/api/chat'
-import type { ChatSource } from '../types'
+import { askChatbot, listSuggestedQuestions } from '../services/api/chat'
+import type { ChatSource, ChatSuggestedQuestion } from '../types'
 
 type Message = {
   id: string
@@ -34,23 +35,38 @@ export function Chat() {
   const [messages, setMessages] = useState<Message[]>([greeting])
   const [question, setQuestion] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [suggestions, setSuggestions] = useState<ChatSuggestedQuestion[]>([])
   const bottom = useRef<HTMLDivElement>(null)
+  const onlyGreeting = messages.length === 1 && messages[0]?.id === 'greeting'
+
+  useEffect(() => {
+    let cancelled = false
+    listSuggestedQuestions()
+      .then((docs) => {
+        if (!cancelled) setSuggestions(docs)
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    const text = question.trim()
-    if (!text || thinking) return
+  const ask = useCallback(async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || thinking) return
 
-    setMessages((current) => [...current, { id: `q-${Date.now()}`, author: 'user', text }])
+    setMessages((current) => [...current, { id: `q-${Date.now()}`, author: 'user', text: trimmed }])
     setQuestion('')
     setThinking(true)
 
     try {
-      const reply = await askChatbot(text)
+      const reply = await askChatbot(trimmed)
       setMessages((current) => [
         ...current,
         {
@@ -69,6 +85,11 @@ export function Chat() {
     } finally {
       setThinking(false)
     }
+  }, [thinking])
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    await ask(question)
   }
 
   return (
@@ -94,6 +115,23 @@ export function Chat() {
               )}
             </div>
           ))}
+          {onlyGreeting && suggestions.length > 0 && !thinking && (
+            <div className="suggested-questions" aria-label="Suggested questions">
+              <p className="suggested-label">Try a question</p>
+              <div className="suggested-chips">
+                {suggestions.map((item) => (
+                  <IonChip
+                    key={item.id}
+                    outline
+                    disabled={thinking}
+                    onClick={() => void ask(item.question)}
+                  >
+                    {item.question}
+                  </IonChip>
+                ))}
+              </div>
+            </div>
+          )}
           {thinking && (
             <div className="bubble assistant">
               <IonSpinner name="dots" />

@@ -10,6 +10,44 @@ function requireInternalSecret(req: { headers: Headers }): boolean {
   return req.headers.get('X-RAG-Internal-Secret') === (process.env.RAG_INTERNAL_SECRET || '')
 }
 
+function publicBase(): string {
+  return (
+    process.env.PAYLOAD_PUBLIC_URL ||
+    process.env.PAYLOAD_INTERNAL_URL ||
+    'http://127.0.0.1:3000'
+  ).replace(/\/$/, '')
+}
+
+/**
+ * Loads a knowledge PDF whether it lives on the local volume or an object store.
+ * Cloud adapters expose an absolute `url`; local uploads expose a relative /api/... path
+ * or a filename we read from KNOWLEDGE_FILES_DIR.
+ */
+async function loadKnowledgePdf(file: {
+  filename?: string | null
+  url?: string | null
+}): Promise<Buffer | null> {
+  const url = file.url?.trim()
+  if (url?.startsWith('http://') || url?.startsWith('https://')) {
+    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) }).catch(() => null)
+    if (!response?.ok) return null
+    return Buffer.from(await response.arrayBuffer())
+  }
+
+  if (url?.startsWith('/')) {
+    const response = await fetch(`${publicBase()}${url}`, {
+      signal: AbortSignal.timeout(30_000),
+    }).catch(() => null)
+    if (response?.ok) {
+      return Buffer.from(await response.arrayBuffer())
+    }
+  }
+
+  const filename = file.filename
+  if (!filename) return null
+  return readFile(path.join(knowledgeFilesDir(), filename)).catch(() => null)
+}
+
 export const internalRagEndpoints: Endpoint[] = [
   {
     path: '/internal/rag-settings',
@@ -81,22 +119,16 @@ export const internalRagEndpoints: Endpoint[] = [
         .catch(() => null)
 
       const file = document?.file
-      const filename =
-        typeof file === 'object' && file !== null && 'filename' in file
-          ? String((file as { filename?: string }).filename)
-          : ''
-
-      if (!filename) {
+      if (!file || typeof file !== 'object') {
         return json({ error: 'file not found' }, 404)
       }
 
-      const filepath = path.join(knowledgeFilesDir(), filename)
-      const data = await readFile(filepath).catch(() => null)
+      const data = await loadKnowledgePdf(file as { filename?: string | null; url?: string | null })
       if (!data) {
         return json({ error: 'file not found' }, 404)
       }
 
-      return new Response(data, {
+      return new Response(new Uint8Array(data), {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Length': String(data.byteLength),

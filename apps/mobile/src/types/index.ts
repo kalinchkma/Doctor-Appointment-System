@@ -57,3 +57,10 @@ export type ChatReply = {
   /** False when the knowledge base did not contain enough evidence to answer. */
   grounded: boolean
 }
+
+export type ChatSuggestedQuestion = {
+  id: string
+  question: string
+  order: number
+  active: boolean
+}

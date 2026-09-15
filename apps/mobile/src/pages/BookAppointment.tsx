@@ -47,7 +47,9 @@ export function BookAppointment() {
       // between this screen loading and the tap. Re-fetch so the list reflects reality.
       const conflicted =
         reason instanceof ApiError &&
-        ['SLOT_UNAVAILABLE', 'SLOT_EXPIRED', 'SLOT_NOT_FOUND'].includes(reason.code)
+        ['SLOT_UNAVAILABLE', 'SLOT_EXPIRED', 'SLOT_NOT_FOUND', 'SLOT_DUPLICATE'].includes(
+          reason.code,
+        )
 
       setNotice(messageFor(reason))
       if (conflicted) {

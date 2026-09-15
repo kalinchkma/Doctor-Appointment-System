@@ -75,6 +75,7 @@ export interface Config {
     'knowledge-files': KnowledgeFile;
     'knowledge-documents': KnowledgeDocument;
     'unresolved-queries': UnresolvedQuery;
+    'chat-suggested-questions': ChatSuggestedQuestion;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -90,6 +91,7 @@ export interface Config {
     'knowledge-files': KnowledgeFilesSelect<false> | KnowledgeFilesSelect<true>;
     'knowledge-documents': KnowledgeDocumentsSelect<false> | KnowledgeDocumentsSelect<true>;
     'unresolved-queries': UnresolvedQueriesSelect<false> | UnresolvedQueriesSelect<true>;
+    'chat-suggested-questions': ChatSuggestedQuestionsSelect<false> | ChatSuggestedQuestionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -218,6 +220,10 @@ export interface AppointmentSlot {
   id: string;
   doctor: string | Doctor;
   startsAt: string;
+  /**
+   * Computed from start time + duration. Used for overlap checks.
+   */
+  endsAt: string;
   durationMinutes: number;
   status: 'available' | 'booked';
   updatedAt: string;
@@ -287,10 +293,39 @@ export interface UnresolvedQuery {
   user: string | User;
   status: 'new' | 'resolved';
   humanResponse?: string | null;
-  retrievalReason?: 'no_results' | 'below_threshold' | 'low_coverage' | 'llm_declined' | null;
+  /**
+   * Why the sufficiency gates declined to answer.
+   */
+  retrievalReason?: ('no_results' | 'below_threshold' | 'low_coverage' | 'llm_declined') | null;
+  /**
+   * Highest vector-search score for this question.
+   */
   topScore?: number | null;
   resolvedAt?: string | null;
   reviewedBy?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Shown as quick-start chips in the healthcare assistant chat.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-suggested-questions".
+ */
+export interface ChatSuggestedQuestion {
+  id: string;
+  /**
+   * Exact text sent to the chatbot when the chip is tapped.
+   */
+  question: string;
+  /**
+   * Lower numbers appear first.
+   */
+  order: number;
+  /**
+   * Inactive questions are hidden from the mobile app.
+   */
+  active?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -349,6 +384,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'unresolved-queries';
         value: string | UnresolvedQuery;
+      } | null)
+    | ({
+        relationTo: 'chat-suggested-questions';
+        value: string | ChatSuggestedQuestion;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -469,6 +508,7 @@ export interface DoctorsSelect<T extends boolean = true> {
 export interface AppointmentSlotsSelect<T extends boolean = true> {
   doctor?: T;
   startsAt?: T;
+  endsAt?: T;
   durationMinutes?: T;
   status?: T;
   updatedAt?: T;
@@ -537,6 +577,17 @@ export interface UnresolvedQueriesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-suggested-questions_select".
+ */
+export interface ChatSuggestedQuestionsSelect<T extends boolean = true> {
+  question?: T;
+  order?: T;
+  active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -576,33 +627,45 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * Choose the chat and embedding providers the healthcare assistant uses. Keys stay in Payload. The Go service only calls this CMS.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "collections_widget".
+ * via the `definition` "rag-settings".
  */
-export interface CollectionsWidget {
-  data?: {
-    [k: string]: unknown;
-  };
-  width: 'full';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "auth".
- */
-export interface Auth {
-  [k: string]: unknown;
-}
-
 export interface RagSetting {
   id: string;
   chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google';
+  /**
+   * Examples: llama3.2 (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).
+   */
   chatModel: string;
+  /**
+   * Leave blank for the provider default. For Ollama in Docker use http://host.docker.internal:11434/v1; on the host use http://127.0.0.1:11434/v1.
+   */
   chatBaseUrl?: string | null;
+  /**
+   * Stored only in Payload. Never sent to the mobile app or committed to git.
+   */
   chatApiKey?: string | null;
+  /**
+   * Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, or Google.
+   */
   embedProvider: 'ollama' | 'openai' | 'google';
+  /**
+   * Examples: nomic-embed-text (768), text-embedding-3-small (1536), text-embedding-004 (768).
+   */
   embedModel: string;
+  /**
+   * Leave blank for the provider default. Same Ollama URL rules as chat.
+   */
   embedBaseUrl?: string | null;
+  /**
+   * Stored only in Payload.
+   */
   embedApiKey?: string | null;
+  /**
+   * Must match the model output and the Atlas vector index. Changing this requires dropping the index and re-ingesting every document.
+   */
   embedDimensions: number;
   minScore: number;
   strongScore: number;
@@ -612,7 +675,10 @@ export interface RagSetting {
   updatedAt?: string | null;
   createdAt?: string | null;
 }
-
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rag-settings_select".
+ */
 export interface RagSettingsSelect<T extends boolean = true> {
   chatProvider?: T;
   chatModel?: T;
@@ -630,6 +696,24 @@ export interface RagSettingsSelect<T extends boolean = true> {
   maxConcurrency?: T;
   updatedAt?: T;
   createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "collections_widget".
+ */
+export interface CollectionsWidget {
+  data?: {
+    [k: string]: unknown;
+  };
+  width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "auth".
+ */
+export interface Auth {
+  [k: string]: unknown;
 }
 
 

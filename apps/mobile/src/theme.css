@@ -236,3 +236,30 @@
   --background: #ffffff;
   border-radius: 20px;
 }
+
+.suggested-questions {
+  display: grid;
+  gap: 8px;
+}
+
+.suggested-label {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--app-muted);
+}
+
+.suggested-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggested-chips ion-chip {
+  margin: 0;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  line-height: 1.35;
+  padding-block: 8px;
+}

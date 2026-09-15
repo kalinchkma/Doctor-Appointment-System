@@ -5,6 +5,8 @@ import type { Payload } from 'payload'
 
 const knowledgeDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/knowledge')
 
+const TERMINAL = new Set(['indexed', 'failed'])
+
 async function clearKnowledge(payload: Payload) {
   const documents = await payload.find({
     collection: 'knowledge-documents',
@@ -31,6 +33,48 @@ async function clearKnowledge(payload: Payload) {
       overrideAccess: true,
     })
   }
+}
+
+/** Wait until every knowledge document reaches indexed/failed (or timeout). */
+export async function waitForKnowledgeIndex(
+  payload: Payload,
+  options: { timeoutMs?: number; pollMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 180_000
+  const pollMs = options.pollMs ?? 2_000
+  const deadline = Date.now() + timeoutMs
+
+  // Let deferred afterChange setImmediate callbacks flush first.
+  await new Promise<void>((resolve) => setImmediate(resolve))
+
+  while (Date.now() < deadline) {
+    const docs = await payload.find({
+      collection: 'knowledge-documents',
+      limit: 50,
+      overrideAccess: true,
+    })
+    if (docs.totalDocs === 0) return
+
+    const pending = docs.docs.filter((doc) => !TERMINAL.has(String(doc.indexStatus)))
+    if (pending.length === 0) {
+      const failed = docs.docs.filter((doc) => doc.indexStatus === 'failed')
+      if (failed.length > 0) {
+        payload.logger.warn(
+          `${failed.length} knowledge document(s) failed indexing — check Ollama models and RAG logs`,
+        )
+      } else {
+        payload.logger.info(`all ${docs.totalDocs} knowledge documents indexed`)
+      }
+      return
+    }
+
+    payload.logger.info(
+      `waiting for knowledge index: ${pending.length} still ${pending.map((d) => d.indexStatus).join(',')}`,
+    )
+    await new Promise<void>((resolve) => setTimeout(resolve, pollMs))
+  }
+
+  payload.logger.warn('timed out waiting for knowledge documents to finish indexing')
 }
 
 export async function seedKnowledge(payload: Payload) {
@@ -81,5 +125,5 @@ export async function seedKnowledge(payload: Payload) {
     })
   }
 
-  payload.logger.info(`seeded ${files.length} knowledge documents`)
+  payload.logger.info(`seeded ${files.length} knowledge documents (indexing in background)`)
 }

@@ -12,11 +12,13 @@ import { Appointments } from './collections/Appointments'
 import { KnowledgeFiles } from './collections/KnowledgeFiles'
 import { KnowledgeDocuments } from './collections/KnowledgeDocuments'
 import { UnresolvedQueries } from './collections/UnresolvedQueries'
+import { ChatSuggestedQuestions } from './collections/ChatSuggestedQuestions'
 import { RagSettings } from './globals/RagSettings'
 import { patientAuthEndpoints } from './endpoints/patientAuth'
 import { chatEndpoints } from './endpoints/chat'
 import { internalRagEndpoints } from './endpoints/internalRag'
 import { ensureIndexes } from './lib/ensureIndexes'
+import { storagePlugins } from './lib/storage'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -39,9 +41,11 @@ export default buildConfig({
     KnowledgeFiles,
     KnowledgeDocuments,
     UnresolvedQueries,
+    ChatSuggestedQuestions,
   ],
   globals: [RagSettings],
   endpoints: [...patientAuthEndpoints, ...chatEndpoints, ...internalRagEndpoints],
+  plugins: storagePlugins(),
   editor: lexicalEditor(),
   db: mongooseAdapter({
     url: process.env.PAYLOAD_DATABASE_URI || 'mongodb://127.0.0.1:27017/doctor_app',

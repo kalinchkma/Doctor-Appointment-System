@@ -9,6 +9,8 @@ export const ErrorCode = {
   SLOT_NOT_FOUND: 'SLOT_NOT_FOUND',
   SLOT_UNAVAILABLE: 'SLOT_UNAVAILABLE',
   SLOT_EXPIRED: 'SLOT_EXPIRED',
+  SLOT_OVERLAP: 'SLOT_OVERLAP',
+  SLOT_DUPLICATE: 'SLOT_DUPLICATE',
   APPOINTMENT_NOT_FOUND: 'APPOINTMENT_NOT_FOUND',
   ALREADY_CANCELLED: 'ALREADY_CANCELLED',
   ASSISTANT_UNAVAILABLE: 'ASSISTANT_UNAVAILABLE',
@@ -40,6 +42,19 @@ export const errors = {
     new ApiError(ErrorCode.SLOT_UNAVAILABLE, 409, 'This appointment slot is no longer available.'),
   slotExpired: () =>
     new ApiError(ErrorCode.SLOT_EXPIRED, 400, 'That appointment slot is in the past.'),
+  slotOverlap: (message?: string) =>
+    new ApiError(
+      ErrorCode.SLOT_OVERLAP,
+      400,
+      message ||
+        'This slot overlaps an existing slot for this doctor. Adjust the start time or duration.',
+    ),
+  slotDuplicate: () =>
+    new ApiError(
+      ErrorCode.SLOT_DUPLICATE,
+      409,
+      'A slot for this doctor at this exact time already exists. Choose a different start time.',
+    ),
   appointmentNotFound: () =>
     new ApiError(ErrorCode.APPOINTMENT_NOT_FOUND, 404, 'That appointment could not be found.'),
   alreadyCancelled: () =>

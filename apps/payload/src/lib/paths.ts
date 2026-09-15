@@ -5,8 +5,9 @@ import path from 'node:path'
 // import.meta.url in production points into .next/server/... and misses the
 // Docker volume mounts used by seed + CMS.
 function resolveAppDir(name: string): string {
-  if (process.env[`${name.toUpperCase().replace(/-/g, '_')}_DIR`]) {
-    return process.env[`${name.toUpperCase().replace(/-/g, '_')}_DIR`] as string
+  const envKey = `${name.toUpperCase().replace(/-/g, '_')}_DIR`
+  if (process.env[envKey]) {
+    return process.env[envKey] as string
   }
 
   const candidates = [

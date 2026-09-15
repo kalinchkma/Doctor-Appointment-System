@@ -12,6 +12,10 @@ import type { Payload } from 'payload'
  *
  * The filter is partial on purpose. Cancelled appointments are excluded, so releasing a
  * slot and rebooking it stays possible while duplicates remain impossible.
+ *
+ * uniq_doctor_startsAt is the backstop for exact duplicate slot starts. Time-range
+ * overlaps are enforced in application hooks (beforeValidate); MongoDB cannot express
+ * arbitrary interval uniqueness as a single unique index.
  */
 export async function ensureIndexes(payload: Payload): Promise<void> {
   const appointments = payload.db.collections['appointments']?.collection
@@ -31,12 +35,35 @@ export async function ensureIndexes(payload: Payload): Promise<void> {
     },
   )
 
-  // Prevents an administrator from accidentally creating two slots for the same doctor
-  // at the same instant, which would present as duplicate rows in the mobile app.
   await slots.createIndex(
     { doctor: 1, startsAt: 1 },
     { name: 'uniq_doctor_startsAt', unique: true },
   )
+
+  await slots.createIndex({ doctor: 1, endsAt: 1 }, { name: 'doctor_endsAt' })
+
+  // Backfill endsAt for slots created before the overlap field existed.
+  const missingEndsAt = await slots
+    .find({
+      $or: [{ endsAt: { $exists: false } }, { endsAt: null }],
+      startsAt: { $exists: true },
+      durationMinutes: { $exists: true },
+    })
+    .toArray()
+
+  for (const doc of missingEndsAt) {
+    const start = new Date(doc.startsAt as Date | string).getTime()
+    const duration = Number(doc.durationMinutes) || 30
+    if (Number.isNaN(start)) continue
+    await slots.updateOne(
+      { _id: doc._id },
+      { $set: { endsAt: new Date(start + duration * 60_000) } },
+    )
+  }
+
+  if (missingEndsAt.length > 0) {
+    payload.logger.info(`backfilled endsAt on ${missingEndsAt.length} appointment slots`)
+  }
 
   payload.logger.info('database indexes ensured')
 }

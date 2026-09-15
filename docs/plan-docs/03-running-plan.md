@@ -303,6 +303,9 @@ the RAG service, so a single chat request can be traced end to end.
 | `pnpm: command not found`                                 | Corepack not enabled                                                                         | `corepack enable`                                     |
 | Booking 409s every time                                   | The slot CAS ran but a later step failed without releasing the slot                          | Confirm the transaction wraps both writes (Phase 2.2) |
 | Chat returns 503 under light load                         | `RAG_MAX_CONCURRENCY` too low, or the provider is rate-limiting                              | Raise the limit; check RAG logs for 429s              |
+| Admin cannot save a slot / “overlaps an existing slot”    | Exact duplicate `doctor+startsAt` or time-range overlap                                      | Change start or duration; see `uniq_doctor_startsAt`  |
+| Mobile chat has no suggested chips                        | Seed not run, or questions inactive in admin                                                 | `pnpm docker:seed`; Admin → Chat Suggested Questions  |
+| Knowledge stuck on `processing`                           | Ollama missing `nomic-embed-text`, or RAG cannot reach CMS file URL                          | Pull models; check shared volume / `STORAGE_DRIVER`   |
 
 ---
 
