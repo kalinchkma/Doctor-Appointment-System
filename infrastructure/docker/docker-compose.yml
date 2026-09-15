@@ -39,6 +39,9 @@ services:
       dockerfile: infrastructure/docker/Dockerfile.cms
     environment:
       NODE_ENV: production
+      # Next.js standalone binds to process.env.HOSTNAME. Docker sets that to the
+      # container id, so healthchecks against 127.0.0.1 fail unless we force 0.0.0.0.
+      HOSTNAME: 0.0.0.0
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       PAYLOAD_DATABASE_URI: ${PAYLOAD_DATABASE_URI}
       PAYLOAD_PUBLIC_URL: ${PAYLOAD_PUBLIC_URL}
