@@ -1,12 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { Endpoint } from 'payload'
 import { json } from '../lib/errors'
 import { proxyCompletion, proxyEmbeddings } from '../lib/llm/providers'
 import { loadRagSettings, publicRagSettings } from '../lib/llm/settings'
-
-const knowledgeDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../knowledge-files')
+import { knowledgeFilesDir } from '../lib/paths'
 
 function requireInternalSecret(req: { headers: Headers }): boolean {
   return req.headers.get('X-RAG-Internal-Secret') === (process.env.RAG_INTERNAL_SECRET || '')
@@ -92,7 +90,7 @@ export const internalRagEndpoints: Endpoint[] = [
         return json({ error: 'file not found' }, 404)
       }
 
-      const filepath = path.join(knowledgeDir, filename)
+      const filepath = path.join(knowledgeFilesDir(), filename)
       const data = await readFile(filepath).catch(() => null)
       if (!data) {
         return json({ error: 'file not found' }, 404)

@@ -14,6 +14,12 @@ async function main() {
   await seedSlots(payload)
   await seedKnowledge(payload)
 
+  // Knowledge afterChange defers the RAG sync POST until after the create
+  // transaction commits (setImmediate). Give those callbacks a chance to fire
+  // before this local Payload process exits.
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  await new Promise<void>((resolve) => setTimeout(resolve, 1500))
+
   payload.logger.info('seed complete')
   process.exit(0)
 }

@@ -5,11 +5,48 @@ import type { Payload } from 'payload'
 
 const knowledgeDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/knowledge')
 
+async function clearKnowledge(payload: Payload) {
+  const documents = await payload.find({
+    collection: 'knowledge-documents',
+    limit: 100,
+    overrideAccess: true,
+  })
+  for (const doc of documents.docs) {
+    await payload.delete({
+      collection: 'knowledge-documents',
+      id: doc.id,
+      overrideAccess: true,
+    })
+  }
+
+  const files = await payload.find({
+    collection: 'knowledge-files',
+    limit: 100,
+    overrideAccess: true,
+  })
+  for (const file of files.docs) {
+    await payload.delete({
+      collection: 'knowledge-files',
+      id: file.id,
+      overrideAccess: true,
+    })
+  }
+}
+
 export async function seedKnowledge(payload: Payload) {
   const existing = await payload.find({ collection: 'knowledge-documents', limit: 20, overrideAccess: true })
-  if (existing.totalDocs > 0) {
+  const incomplete = existing.docs.some((doc) => doc.indexStatus !== 'indexed')
+
+  if (existing.totalDocs > 0 && !incomplete) {
     payload.logger.info(`knowledge documents already present (${existing.totalDocs}), skipping`)
     return
+  }
+
+  // A previous seed can leave metadata without files on the CMS volume (or stuck in
+  // pending/failed). Wipe and recreate so uploads land on the shared volume and sync again.
+  if (existing.totalDocs > 0) {
+    payload.logger.info('clearing incomplete knowledge documents before re-seed')
+    await clearKnowledge(payload)
   }
 
   const files = (await readdir(knowledgeDir).catch(() => [])).filter((name) => name.endsWith('.pdf'))

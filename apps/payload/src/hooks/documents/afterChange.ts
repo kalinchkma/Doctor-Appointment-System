@@ -1,4 +1,4 @@
-import type { CollectionAfterChangeHook } from 'payload'
+import type { CollectionAfterChangeHook, PayloadRequest } from 'payload'
 import { syncDocument } from '../../services/rag'
 
 function reachableFromRag(): string {
@@ -18,6 +18,26 @@ function fileId(value: unknown): string | null {
   return null
 }
 
+type IndexStatus = 'pending' | 'processing' | 'indexed' | 'failed'
+
+async function markStatus(
+  req: PayloadRequest,
+  id: string,
+  data: { indexStatus: IndexStatus; indexError?: string | null },
+) {
+  // Pass `req` so this update shares the create/update transaction. Calling
+  // update() without it opens a new transaction that cannot see an uncommitted
+  // insert and fails with NotFound (the seed failure mode).
+  await req.payload.update({
+    collection: 'knowledge-documents',
+    id,
+    data,
+    req,
+    overrideAccess: true,
+    context: { skipRagSync: true },
+  })
+}
+
 export const syncKnowledgeDocument: CollectionAfterChangeHook = async ({
   doc,
   previousDoc,
@@ -33,42 +53,50 @@ export const syncKnowledgeDocument: CollectionAfterChangeHook = async ({
     return doc
   }
 
-  try {
-    await req.payload.update({
-      collection: 'knowledge-documents',
-      id: String(doc.id),
-      data: { indexStatus: 'processing', indexError: null },
-      overrideAccess: true,
-      context: { skipRagSync: true },
-    })
-  } catch (error) {
-    req.payload.logger.error({ err: error, id: doc.id }, 'failed to mark knowledge document processing')
-  }
+  const id = String(doc.id)
 
   try {
-    await syncDocument({
-      documentId: String(doc.id),
-      version: Number(doc.version) || 1,
-      title: String(doc.title),
-      fileUrl: `${reachableFromRag()}/api/internal/knowledge-documents/${doc.id}/file`,
-    })
+    await markStatus(req, id, { indexStatus: 'processing', indexError: null })
   } catch (error) {
-    req.payload.logger.error({ err: error, id: doc.id }, 'RAG sync request failed')
-    try {
-      await req.payload.update({
-        collection: 'knowledge-documents',
-        id: String(doc.id),
-        data: {
-          indexStatus: 'failed',
-          indexError: 'The indexing service could not be reached. Try saving the document again.',
-        },
-        overrideAccess: true,
-        context: { skipRagSync: true },
-      })
-    } catch (updateError) {
-      req.payload.logger.error({ err: updateError, id: doc.id }, 'failed to mark knowledge document failed')
-    }
+    req.payload.logger.error({ err: error, id }, 'failed to mark knowledge document processing')
   }
+
+  // afterChange runs before the surrounding transaction commits. Defer the HTTP
+  // call to RAG until after commit so the document (and its upload) are visible
+  // when the Go service fetches the PDF and posts index status back.
+  const syncPayload = {
+    documentId: id,
+    version: Number(doc.version) || 1,
+    title: String(doc.title),
+    fileUrl: `${reachableFromRag()}/api/internal/knowledge-documents/${id}/file`,
+  }
+  const logger = req.payload.logger
+  const payload = req.payload
+
+  setImmediate(() => {
+    void (async () => {
+      try {
+        await syncDocument(syncPayload)
+      } catch (error) {
+        logger.error({ err: error, id }, 'RAG sync request failed')
+        try {
+          await payload.update({
+            collection: 'knowledge-documents',
+            id,
+            data: {
+              indexStatus: 'failed',
+              indexError:
+                'The indexing service could not be reached. Try saving the document again.',
+            },
+            overrideAccess: true,
+            context: { skipRagSync: true },
+          })
+        } catch (updateError) {
+          logger.error({ err: updateError, id }, 'failed to mark knowledge document failed')
+        }
+      }
+    })()
+  })
 
   return doc
 }

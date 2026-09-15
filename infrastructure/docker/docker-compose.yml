@@ -50,8 +50,15 @@ services:
       RAG_SERVICE_URL: ${RAG_SERVICE_URL}
       RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      KNOWLEDGE_FILES_DIR: /app/apps/payload/knowledge-files
+      MEDIA_DIR: /app/apps/payload/media
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+    # Seed and CMS must share upload dirs: seed writes PDFs/photos into these paths,
+    # and the running CMS (plus RAG via CMS) reads them back from the same volumes.
+    volumes:
+      - cms_media:/app/apps/payload/media
+      - cms_knowledge_files:/app/apps/payload/knowledge-files
     ports:
       - '3000:3000'
     healthcheck:
@@ -115,6 +122,11 @@ services:
       RAG_SERVICE_URL: ${RAG_SERVICE_URL}
       RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
       PAYLOAD_INTERNAL_URL: ${PAYLOAD_INTERNAL_URL:-http://cms:3000}
+      KNOWLEDGE_FILES_DIR: /workspace/apps/payload/knowledge-files
+      MEDIA_DIR: /workspace/apps/payload/media
+    volumes:
+      - cms_media:/workspace/apps/payload/media
+      - cms_knowledge_files:/workspace/apps/payload/knowledge-files
     depends_on:
       mongodb:
         condition: service_healthy
@@ -124,3 +136,5 @@ services:
 volumes:
   mongodb_data:
   mongodb_configdb:
+  cms_media:
+  cms_knowledge_files:
