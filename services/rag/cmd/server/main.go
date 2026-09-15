@@ -61,15 +61,14 @@ func run(cfg config.Config) error {
 	}
 	defer func() { _ = store.Close(ctx) }()
 
-	go func() {
-		indexCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
-		if err := store.EnsureSearchIndex(indexCtx); err != nil {
-			slog.Error("vector search index", "error", err)
-			return
-		}
-		slog.Info("vector search index ready", "name", vectorstore.SearchIndexName, "dimensions", cfg.EmbedDimensions)
-	}()
+	// Block until the Atlas vector index is READY. Without it, $vectorSearch returns
+	// zero hits and every medical question falls through to the insufficient fallback.
+	indexCtx, cancelIndex := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancelIndex()
+	if err := store.EnsureSearchIndex(indexCtx); err != nil {
+		return fmt.Errorf("vector search index: %w", err)
+	}
+	slog.Info("vector search index ready", "name", vectorstore.SearchIndexName, "dimensions", cfg.EmbedDimensions)
 
 	proxy := llm.NewProxy(cfg.PayloadURL, cfg.InternalSecret, cfg.EmbedDimensions)
 	pipe := pipeline.New(cfg, store, proxy, proxy, pipeline.PayloadCallback(cfg.PayloadURL, cfg.InternalSecret))

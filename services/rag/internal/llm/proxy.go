@@ -28,7 +28,7 @@ func NewProxy(payloadURL, secret string, dimensions int) *Proxy {
 		baseURL:    strings.TrimRight(payloadURL, "/"),
 		secret:     secret,
 		dimensions: dimensions,
-		http:       &http.Client{Timeout: 45 * time.Second},
+		http:       &http.Client{Timeout: 180 * time.Second},
 		maxRetries: 3,
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/example/doctor-appointment-rag/services/rag/internal/config"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/ingestion"
+	"github.com/example/doctor-appointment-rag/services/rag/internal/intent"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/llm"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/relevance"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
@@ -142,6 +143,30 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		return ChatResult{Answer: FallbackAnswer, Reason: string(relevance.ReasonNoResults)}, nil
 	}
 
+	switch kind := intent.Classify(question); kind {
+	case intent.KindGreeting:
+		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
+		return ChatResult{
+			Sufficient: true,
+			Answer:     intent.GreetingAnswer,
+			Reason:     string(kind),
+		}, nil
+	case intent.KindIdentity:
+		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
+		return ChatResult{
+			Sufficient: true,
+			Answer:     intent.IdentityAnswer,
+			Reason:     string(kind),
+		}, nil
+	case intent.KindOffTopic:
+		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
+		return ChatResult{
+			Sufficient: false,
+			Answer:     intent.OffTopicAnswer,
+			Reason:     string(kind),
+		}, nil
+	}
+
 	vectors, err := p.embedder.Embed(ctx, []string{question})
 	if err != nil {
 		return ChatResult{}, fmt.Errorf("embed question: %w", err)
@@ -188,7 +213,12 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 
 	parsed, ok := llm.ParseGeneration(raw)
 	if !ok || !parsed.Sufficient || strings.TrimSpace(parsed.Answer) == "" {
-		slog.Info("chat llm declined or malformed", "ok", ok, "sufficient", parsed.Sufficient, "answerLen", len(strings.TrimSpace(parsed.Answer)))
+		slog.Info("chat llm declined or malformed",
+			"ok", ok,
+			"sufficient", parsed.Sufficient,
+			"answerLen", len(strings.TrimSpace(parsed.Answer)),
+			"rawPreview", truncate(raw, 240),
+		)
 		return ChatResult{
 			Sufficient: false,
 			Answer:     FallbackAnswer,

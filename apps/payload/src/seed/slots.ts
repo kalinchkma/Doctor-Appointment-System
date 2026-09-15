@@ -71,6 +71,7 @@ export async function seedSlots(payload: Payload): Promise<void> {
             endsAt: new Date(startsAt.getTime() + SLOT_MINUTES * 60_000).toISOString(),
             durationMinutes: SLOT_MINUTES,
             status: 'available',
+            scheduleType: 'once',
           },
         })
         created++

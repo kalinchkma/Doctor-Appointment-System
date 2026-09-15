@@ -45,8 +45,8 @@ paid API key is needed anywhere in this project.
 
 ```bash
 brew install ollama
-ollama pull nomic-embed-text     # embeddings, 768 dimensions
-ollama pull llama3.2             # generation
+ollama pull nomic-embed-text        # embeddings, 768 dimensions
+ollama pull deepseek-r1:latest      # generation (reasoning model)
 
 # Bind to all interfaces so the Compose containers can reach it.
 OLLAMA_HOST=0.0.0.0 ollama serve

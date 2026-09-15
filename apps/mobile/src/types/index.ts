@@ -21,6 +21,9 @@ export type Doctor = {
   qualifications?: string
   bio?: string
   photo?: Media | string | null
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
   active: boolean
 }
 
@@ -30,8 +33,11 @@ export type AppointmentSlot = {
   id: string
   doctor: Doctor | string
   startsAt: string
+  endsAt?: string
   durationMinutes: number
   status: SlotStatus
+  scheduleType?: 'once' | 'daily' | 'weekdays'
+  seriesId?: string | null
 }
 
 export type AppointmentStatus = 'booked' | 'cancelled'

@@ -13,14 +13,12 @@ export async function listDoctors(): Promise<Doctor[]> {
 export const getDoctor = (id: string) => get<Doctor>(`/api/doctors/${id}?depth=1`)
 
 /**
- * Available slots from now onward. The status filter is a display convenience only —
- * the booking endpoint re-checks availability atomically, so a slot shown here may still
- * be taken by the time the user taps it.
+ * Future slots for a doctor (available and booked). Booked times are shown in the UI
+ * but cannot be selected; the booking endpoint still enforces availability atomically.
  */
-export async function listAvailableSlots(doctorID: string): Promise<AppointmentSlot[]> {
+export async function listDoctorSlots(doctorID: string): Promise<AppointmentSlot[]> {
   const query = new URLSearchParams({
     'where[doctor][equals]': doctorID,
-    'where[status][equals]': 'available',
     'where[startsAt][greater_than]': new Date().toISOString(),
     sort: 'startsAt',
     limit: '200',
@@ -28,4 +26,10 @@ export async function listAvailableSlots(doctorID: string): Promise<AppointmentS
   })
   const response = await get<Paginated<AppointmentSlot>>(`/api/appointment-slots?${query}`)
   return response.docs
+}
+
+/** @deprecated Prefer listDoctorSlots — kept for any older callers. */
+export async function listAvailableSlots(doctorID: string): Promise<AppointmentSlot[]> {
+  const slots = await listDoctorSlots(doctorID)
+  return slots.filter((slot) => slot.status === 'available')
 }

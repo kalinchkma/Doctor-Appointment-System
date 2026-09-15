@@ -9,6 +9,9 @@ type DoctorSeed = {
   specialization: string
   qualifications: string
   bio: string
+  address: string
+  latitude: number
+  longitude: number
   colour: { r: number; g: number; b: number }
 }
 
@@ -18,6 +21,9 @@ const DOCTORS: DoctorSeed[] = [
     specialization: 'Obstetrics & Gynaecology',
     qualifications: 'MBBS, MRCOG — 14 years in maternal medicine',
     bio: 'Amara looks after pregnancy care from the first trimester through to postnatal recovery, with a particular interest in nutrition during pregnancy.',
+    address: 'United Hospital, Gulshan, Dhaka',
+    latitude: 23.8041,
+    longitude: 90.4152,
     colour: { r: 122, g: 90, b: 248 },
   },
   {
@@ -25,6 +31,9 @@ const DOCTORS: DoctorSeed[] = [
     specialization: 'Paediatrics',
     qualifications: 'MBBS, MD (Paediatrics), MRCPCH',
     bio: 'Idris treats infants and children up to sixteen, and runs a weekly clinic on childhood growth and feeding.',
+    address: 'Square Hospitals, Panthapath, Dhaka',
+    latitude: 23.7516,
+    longitude: 90.3783,
     colour: { r: 32, g: 164, b: 143 },
   },
   {
@@ -32,6 +41,9 @@ const DOCTORS: DoctorSeed[] = [
     specialization: 'General Medicine',
     qualifications: 'MBBS, MRCP (UK), Diploma in Family Medicine',
     bio: 'Wei Lin handles general consultations, long-term condition reviews, and referrals into specialist care.',
+    address: 'Apollo Hospitals Dhaka, Bashundhara R/A',
+    latitude: 23.8131,
+    longitude: 90.4236,
     colour: { r: 226, g: 118, b: 62 },
   },
 ]
@@ -62,7 +74,22 @@ export async function seedDoctors(payload: Payload): Promise<void> {
     })
 
     if (existing.totalDocs > 0) {
-      payload.logger.info(`doctor already seeded: ${seed.name}`)
+      const doctor = existing.docs[0]
+      if (doctor.latitude == null || doctor.longitude == null) {
+        await payload.update({
+          collection: 'doctors',
+          id: doctor.id,
+          overrideAccess: true,
+          data: {
+            address: seed.address,
+            latitude: seed.latitude,
+            longitude: seed.longitude,
+          },
+        })
+        payload.logger.info(`updated doctor location: ${seed.name}`)
+      } else {
+        payload.logger.info(`doctor already seeded: ${seed.name}`)
+      }
       continue
     }
 
@@ -81,6 +108,9 @@ export async function seedDoctors(payload: Payload): Promise<void> {
         specialization: seed.specialization,
         qualifications: seed.qualifications,
         bio: seed.bio,
+        address: seed.address,
+        latitude: seed.latitude,
+        longitude: seed.longitude,
         photo: photo.id,
         active: true,
       },

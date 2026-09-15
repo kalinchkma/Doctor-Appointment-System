@@ -27,13 +27,22 @@ export function setUnauthenticatedHandler(handler: (() => void) | null) {
   onUnauthenticated = handler
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  options: { timeoutMs?: number } = {},
+): Promise<T> {
   const token = await readToken()
+  const timeoutMs = options.timeoutMs
+  const signal =
+    init.signal ??
+    (typeof timeoutMs === 'number' && timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
 
   let response: Response
   try {
     response = await fetch(`${baseURL}${path}`, {
       ...init,
+      signal,
       headers: {
         'Content-Type': 'application/json',
         // Payload also accepts a cookie, but the Android WebView origin differs from the
@@ -42,7 +51,14 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
         ...init.headers,
       },
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new ApiError(
+        'ASSISTANT_UNAVAILABLE',
+        504,
+        'The assistant took too long to respond. Try again, or switch to a faster model in Admin → RAG Settings (for example llama3.2 or gemini-2.0-flash).',
+      )
+    }
     throw new ApiError(
       'NETWORK_ERROR',
       0,
@@ -71,13 +87,18 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   return body
 }
 
-export const get = <T>(path: string) => request<T>(path)
+export const get = <T>(path: string, options?: { timeoutMs?: number }) =>
+  request<T>(path, {}, options)
 
-export const post = <T>(path: string, payload?: unknown) =>
-  request<T>(path, {
-    method: 'POST',
-    ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
-  })
+export const post = <T>(path: string, payload?: unknown, options?: { timeoutMs?: number }) =>
+  request<T>(
+    path,
+    {
+      method: 'POST',
+      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+    },
+    options,
+  )
 
 /** Resolves the display URL for a Payload upload, preferring the generated thumbnail. */
 export function mediaURL(media: unknown): string | undefined {
@@ -86,6 +107,23 @@ export function mediaURL(media: unknown): string | undefined {
   }
   const upload = media as { url?: string; sizes?: { thumbnail?: { url?: string } } }
   const path = upload.sizes?.thumbnail?.url ?? upload.url
+  if (!path) return undefined
 
-  return path ? `${baseURL}${path}` : undefined
+  // Absolute URLs from Payload (often http://localhost:3000/...) must be rewritten onto
+  // VITE_PAYLOAD_URL so Android emulators / devices can load them.
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      const absolute = new URL(path)
+      const base = new URL(baseURL)
+      if (absolute.pathname.startsWith('/api/')) {
+        return `${base.origin}${absolute.pathname}${absolute.search}`
+      }
+      return path
+    } catch {
+      return path
+    }
+  }
+
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  return `${baseURL.replace(/\/$/, '')}${normalized}`
 }

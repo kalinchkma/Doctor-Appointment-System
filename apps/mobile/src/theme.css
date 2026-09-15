@@ -66,6 +66,15 @@
   margin: 4px 0;
 }
 
+.doctor-list-address {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .avatar {
   width: 42px;
   height: 42px;
@@ -140,6 +149,179 @@
 
 .slot-grid ion-chip {
   margin: 0;
+}
+
+.slot-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--app-muted, #667);
+  margin: 0 0 8px;
+}
+
+.slot-legend .legend::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.slot-legend .legend.available::before {
+  background: var(--ion-color-success, #2dd36f);
+}
+
+.slot-legend .legend.booked::before {
+  background: var(--ion-color-medium, #92949c);
+}
+
+.slot-legend .legend.selected::before {
+  background: var(--ion-color-primary);
+}
+
+.slot-chip.booked {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.card-surface {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 6px 20px #173b3512;
+  margin-bottom: 14px;
+}
+
+.doctor-detail {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 24px;
+}
+
+.booking-doctor {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.booking-doctor h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--app-ink);
+}
+
+.booking-hint {
+  color: var(--app-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+
+.slot-pill {
+  appearance: none;
+  border: 1.5px solid #b9d7d0;
+  background: #eef8f5;
+  color: var(--app-ink);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.slot-pill.selected {
+  background: var(--ion-color-primary);
+  border-color: var(--ion-color-primary);
+  color: #fff;
+  box-shadow: 0 4px 14px #166b6140;
+}
+
+.slot-pill.booked {
+  background: #eceff0;
+  border-color: #d5dadd;
+  color: #8a9390;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.booking-footer {
+  --background: #ffffff;
+  --border-width: 0;
+  padding: 10px 12px 14px;
+  box-shadow: 0 -8px 24px #173b3514;
+}
+
+.booking-summary {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.summary-label {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+}
+
+.doctor-map {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 6px 20px #173b3512;
+  margin: 8px 0 18px;
+}
+
+.doctor-map.compact {
+  margin-top: 20px;
+}
+
+.doctor-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.doctor-map-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--app-ink);
+}
+
+.maps-link {
+  color: var(--ion-color-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.doctor-address {
+  margin: 0 0 10px;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.doctor-map-frame {
+  height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #d7e4e0;
+}
+
+.doctor-map.compact .doctor-map-frame {
+  height: 180px;
+}
+
+.map-loading {
+  margin: 0;
+  padding: 24px;
+  color: var(--app-muted);
+  text-align: center;
 }
 
 /* Confirmation */

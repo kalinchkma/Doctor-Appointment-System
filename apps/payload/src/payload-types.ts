@@ -206,6 +206,18 @@ export interface Doctor {
   photo?: (string | null) | Media;
   bio?: string | null;
   /**
+   * Clinic address shown to patients. Auto-filled when you pick a map pin.
+   */
+  address?: string | null;
+  /**
+   * Set by clicking the map above (or enter manually).
+   */
+  latitude?: number | null;
+  /**
+   * Set by clicking the map above (or enter manually).
+   */
+  longitude?: number | null;
+  /**
    * Inactive doctors are hidden from the mobile application.
    */
   active?: boolean | null;
@@ -213,12 +225,17 @@ export interface Doctor {
   createdAt: string;
 }
 /**
+ * Create a one-time slot, or a daily/weekday series that expands through the repeat-until date. Overlapping times for the same doctor are rejected.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "appointment-slots".
  */
 export interface AppointmentSlot {
   id: string;
   doctor: string | Doctor;
+  /**
+   * First occurrence for recurring slots; every generated day keeps this clock time.
+   */
   startsAt: string;
   /**
    * Computed from start time + duration. Used for overlap checks.
@@ -226,6 +243,18 @@ export interface AppointmentSlot {
   endsAt: string;
   durationMinutes: number;
   status: 'available' | 'booked';
+  /**
+   * Recurring choices create matching slots through the repeat-until date.
+   */
+  scheduleType: 'once' | 'daily' | 'weekdays';
+  /**
+   * Inclusive end date for the series (required for daily/weekday schedules).
+   */
+  repeatUntil?: string | null;
+  /**
+   * Shared id for slots generated from one recurring create.
+   */
+  seriesId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -245,6 +274,8 @@ export interface Appointment {
   createdAt: string;
 }
 /**
+ * Upload a PDF here to index it for the healthcare assistant. A Knowledge Document is created automatically and embedded asynchronously.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "knowledge-files".
  */
@@ -263,6 +294,8 @@ export interface KnowledgeFile {
   focalY?: number | null;
 }
 /**
+ * Indexed PDFs for the healthcare assistant. Uploading under Knowledge Files also creates a document here automatically.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "knowledge-documents".
  */
@@ -497,6 +530,9 @@ export interface DoctorsSelect<T extends boolean = true> {
   qualifications?: T;
   photo?: T;
   bio?: T;
+  address?: T;
+  latitude?: T;
+  longitude?: T;
   active?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -511,6 +547,9 @@ export interface AppointmentSlotsSelect<T extends boolean = true> {
   endsAt?: T;
   durationMinutes?: T;
   status?: T;
+  scheduleType?: T;
+  repeatUntil?: T;
+  seriesId?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -636,11 +675,11 @@ export interface RagSetting {
   id: string;
   chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google';
   /**
-   * Examples: llama3.2 (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).
+   * Examples: llama3.2 / deepseek-r1:1.5b (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).
    */
   chatModel: string;
   /**
-   * Leave blank for the provider default. For Ollama in Docker use http://host.docker.internal:11434/v1; on the host use http://127.0.0.1:11434/v1.
+   * Leave blank for the provider default. For Ollama use http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full .../generateContent URL here.
    */
   chatBaseUrl?: string | null;
   /**
@@ -652,7 +691,7 @@ export interface RagSetting {
    */
   embedProvider: 'ollama' | 'openai' | 'google';
   /**
-   * Examples: nomic-embed-text (768), text-embedding-3-small (1536), text-embedding-004 (768).
+   * Examples: nomic-embed-text (768, Ollama), text-embedding-3-small (1536, OpenAI), gemini-embedding-001 (set dimensions to 768). Do not use chat model names for embeddings. Tip: keep Ollama embeddings even when chat is Gemini/OpenAI unless you re-ingest.
    */
   embedModel: string;
   /**

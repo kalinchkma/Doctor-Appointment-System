@@ -40,7 +40,7 @@ func FromEnv() (Config, error) {
 		EmbedDimensions:  envInt("EMBEDDING_DIMENSIONS", 768),
 		IngestTimeoutSec: envInt("RAG_INGEST_TIMEOUT_SEC", 120),
 		// 60s leaves headroom for a cold Ollama model load after retrieval.
-		ChatTimeoutSec:   envInt("RAG_CHAT_TIMEOUT_SEC", 60),
+		ChatTimeoutSec:   envInt("RAG_CHAT_TIMEOUT_SEC", 180),
 	}
 
 	if cfg.EmbedDimensions < 8 {

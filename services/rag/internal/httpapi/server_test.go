@@ -101,7 +101,7 @@ func TestConcurrencyLimitReturns503(t *testing.T) {
 	handler := testServer(t, cfg, blockingEmbedder{started: started, hold: hold, FakeEmbedder: llm.FakeEmbedder{Dim: 8}})
 
 	go func() {
-		req := httptest.NewRequest(http.MethodPost, "/internal/v1/chat", bytes.NewBufferString(`{"question":"one"}`))
+		req := httptest.NewRequest(http.MethodPost, "/internal/v1/chat", bytes.NewBufferString(`{"question":"Why is folic acid used in pregnancy?"}`))
 		req.Header.Set("X-RAG-Internal-Secret", "s3cret")
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}()
@@ -112,7 +112,7 @@ func TestConcurrencyLimitReturns503(t *testing.T) {
 		t.Fatal("first request did not start")
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/internal/v1/chat", bytes.NewBufferString(`{"question":"two"}`))
+	req := httptest.NewRequest(http.MethodPost, "/internal/v1/chat", bytes.NewBufferString(`{"question":"What foods help pregnancy nutrition?"}`))
 	req.Header.Set("X-RAG-Internal-Secret", "s3cret")
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)

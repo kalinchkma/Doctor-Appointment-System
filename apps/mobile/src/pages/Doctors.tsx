@@ -29,7 +29,8 @@ export function Doctors() {
     return (data ?? []).filter(
       (doctor) =>
         doctor.name.toLowerCase().includes(needle) ||
-        doctor.specialization.toLowerCase().includes(needle),
+        doctor.specialization.toLowerCase().includes(needle) ||
+        (doctor.address ?? '').toLowerCase().includes(needle),
     )
   }, [data, query])
 
@@ -47,7 +48,7 @@ export function Doctors() {
         </IonRefresher>
         <IonSearchbar
           value={query}
-          placeholder="Search name or specialty"
+          placeholder="Search name, specialty, or location"
           onIonInput={(event) => setQuery(event.detail.value ?? '')}
         />
         <AsyncContent
@@ -67,6 +68,7 @@ export function Doctors() {
                   <div>
                     <strong>{doctor.name}</strong>
                     <p>{doctor.specialization}</p>
+                    {doctor.address && <p className="doctor-list-address">{doctor.address}</p>}
                   </div>
                 </div>
               </IonCardContent>

@@ -1,7 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   IonButton,
-  IonChip,
   IonContent,
   IonFooter,
   IonLoading,
@@ -11,12 +10,15 @@ import {
 } from '@ionic/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
+import { DoctorAvatar } from '../components/DoctorAvatar'
+import { DoctorMap } from '../components/DoctorMap'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor, useAsync } from '../hooks/useAsync'
 import { bookAppointment } from '../services/api/appointments'
-import { getDoctor, listAvailableSlots } from '../services/api/doctors'
+import { getDoctor, listDoctorSlots } from '../services/api/doctors'
 import { ApiError } from '../services/api/client'
-import { formatTime, groupByDay } from '../lib/datetime'
+import { formatDay, formatTime, groupByDay } from '../lib/datetime'
+import type { AppointmentSlot } from '../types'
 
 export function BookAppointment() {
   const { doctorId = '' } = useParams()
@@ -29,7 +31,7 @@ export function BookAppointment() {
     useCallback(
       async () => ({
         doctor: await getDoctor(doctorId),
-        slots: await listAvailableSlots(doctorId),
+        slots: await listDoctorSlots(doctorId),
       }),
       [doctorId],
     ),
@@ -43,13 +45,16 @@ export function BookAppointment() {
       const appointment = await bookAppointment(selected)
       navigate(`/appointments/${appointment.id}/confirmed`, { replace: true })
     } catch (reason) {
-      // A conflict is expected under concurrency: another patient won the same slot
-      // between this screen loading and the tap. Re-fetch so the list reflects reality.
       const conflicted =
         reason instanceof ApiError &&
-        ['SLOT_UNAVAILABLE', 'SLOT_EXPIRED', 'SLOT_NOT_FOUND', 'SLOT_DUPLICATE'].includes(
-          reason.code,
-        )
+        [
+          'SLOT_UNAVAILABLE',
+          'SLOT_EXPIRED',
+          'SLOT_NOT_FOUND',
+          'SLOT_DUPLICATE',
+          'BOOKING_LIMIT',
+          'ALREADY_BOOKED_WITH_DOCTOR',
+        ].includes(reason.code)
 
       setNotice(messageFor(reason))
       if (conflicted) {
@@ -61,45 +66,106 @@ export function BookAppointment() {
     }
   }
 
+  const onSlotClick = (slot: AppointmentSlot) => {
+    if (slot.status !== 'available') {
+      setNotice('That time is already booked. Please choose an available slot.')
+      return
+    }
+    setSelected(slot.id)
+  }
+
   const days = groupByDay(data?.slots ?? [])
+  const hasOpenSlot = (data?.slots ?? []).some((slot) => slot.status === 'available')
+  const selectedSlot = useMemo(
+    () => (data?.slots ?? []).find((slot) => slot.id === selected) ?? null,
+    [data?.slots, selected],
+  )
 
   return (
     <IonPage>
-      <ScreenHeader title="Choose a time" backTo={`/doctors/${doctorId}`} />
+      <ScreenHeader title="Book appointment" backTo={`/doctors/${doctorId}`} />
       <IonContent className="ion-padding">
         <AsyncContent
           loading={loading}
           error={error}
           empty={days.length === 0}
-          emptyMessage="This doctor has no open times right now. Please check back later."
+          emptyMessage="This doctor has no upcoming times right now. Please check back later."
           onRetry={reload}
         >
-          <p className="intro">
-            Booking with <strong>{data?.doctor.name}</strong>
+          {data?.doctor && (
+            <div className="booking-doctor card-surface">
+              <DoctorAvatar doctor={data.doctor} />
+              <div>
+                <h1>{data.doctor.name}</h1>
+                <p className="specialty">{data.doctor.specialization}</p>
+              </div>
+            </div>
+          )}
+
+          <p className="booking-hint">
+            Choose one available time. You can keep up to 2 upcoming appointments, and only one
+            with the same doctor.
           </p>
+
+          <p className="slot-legend">
+            <span className="legend available">Available</span>
+            <span className="legend booked">Booked</span>
+            <span className="legend selected">Selected</span>
+          </p>
+
           {days.map(([day, slots]) => (
             <section key={day} className="day-group">
               <h2>{day}</h2>
               <div className="slot-grid">
-                {slots.map((slot) => (
-                  <IonChip
-                    key={slot.id}
-                    outline={selected !== slot.id}
-                    color={selected === slot.id ? 'primary' : 'medium'}
-                    onClick={() => setSelected(slot.id)}
-                  >
-                    {formatTime(slot.startsAt)}
-                  </IonChip>
-                ))}
+                {slots.map((slot) => {
+                  const booked = slot.status === 'booked'
+                  const isSelected = selected === slot.id
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      className={[
+                        'slot-pill',
+                        booked ? 'booked' : '',
+                        isSelected ? 'selected' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      disabled={booked}
+                      onClick={() => onSlotClick(slot)}
+                    >
+                      {formatTime(slot.startsAt)}
+                      {booked ? ' · taken' : ''}
+                    </button>
+                  )
+                })}
               </div>
             </section>
           ))}
+
+          {data?.doctor && <DoctorMap doctor={data.doctor} compact />}
         </AsyncContent>
       </IonContent>
       {days.length > 0 && (
         <IonFooter>
-          <IonToolbar className="ion-padding-horizontal">
-            <IonButton expand="block" disabled={!selected || booking} onClick={confirm}>
+          <IonToolbar className="booking-footer">
+            <div className="booking-summary">
+              {selectedSlot ? (
+                <>
+                  <span className="summary-label">Selected</span>
+                  <strong>
+                    {formatDay(selectedSlot.startsAt)} · {formatTime(selectedSlot.startsAt)}
+                  </strong>
+                </>
+              ) : (
+                <span className="summary-label">Pick a green time above</span>
+              )}
+            </div>
+            <IonButton
+              expand="block"
+              disabled={!selected || booking || !hasOpenSlot}
+              onClick={confirm}
+            >
               {selected ? 'Confirm booking' : 'Select a time'}
             </IonButton>
           </IonToolbar>
@@ -109,7 +175,7 @@ export function BookAppointment() {
       <IonToast
         isOpen={Boolean(notice)}
         message={notice}
-        duration={4000}
+        duration={4500}
         color="warning"
         onDidDismiss={() => setNotice('')}
       />

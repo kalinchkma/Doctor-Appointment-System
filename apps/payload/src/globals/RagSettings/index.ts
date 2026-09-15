@@ -40,7 +40,7 @@ export const RagSettings: GlobalConfig = {
           defaultValue: 'llama3.2',
           admin: {
             description:
-              'Examples: llama3.2 (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).',
+              'Examples: llama3.2 / deepseek-r1:1.5b (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).',
           },
         },
         {
@@ -48,7 +48,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default. For Ollama in Docker use http://host.docker.internal:11434/v1; on the host use http://127.0.0.1:11434/v1.',
+              'Leave blank for the provider default. For Ollama use http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full .../generateContent URL here.',
           },
         },
         {
@@ -88,7 +88,7 @@ export const RagSettings: GlobalConfig = {
           defaultValue: 'nomic-embed-text',
           admin: {
             description:
-              'Examples: nomic-embed-text (768), text-embedding-3-small (1536), text-embedding-004 (768).',
+              'Examples: nomic-embed-text (768, Ollama), text-embedding-3-small (1536, OpenAI), gemini-embedding-001 (set dimensions to 768). Do not use chat model names for embeddings. Tip: keep Ollama embeddings even when chat is Gemini/OpenAI unless you re-ingest.',
           },
         },
         {

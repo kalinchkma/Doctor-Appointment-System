@@ -136,7 +136,7 @@ Unit tests use a fake embedder. A reviewer demo needs:
 ```
 brew install ollama
 ollama pull nomic-embed-text
-ollama pull llama3.2
+ollama pull deepseek-r1:latest
 OLLAMA_HOST=0.0.0.0 ollama serve
 ```
 
@@ -172,7 +172,7 @@ both.
 
 ## 6. What is left for a live demo
 
-1. Install and start Ollama (`nomic-embed-text`, `llama3.2`, `OLLAMA_HOST=0.0.0.0`)
+1. Install and start Ollama (`nomic-embed-text`, `deepseek-r1:latest`, `OLLAMA_HOST=0.0.0.0`)
 2. `pnpm docker:up`, then `pnpm seed` or `pnpm docker:seed`
 3. Ingest PDFs (admin upload or `/rag -ingest /knowledge`)
 4. Rehearse the walkthrough in `03-running-plan.md` §9

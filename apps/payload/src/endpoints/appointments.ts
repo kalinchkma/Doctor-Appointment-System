@@ -8,6 +8,7 @@ import {
   toErrorResponse,
 } from '../lib/errors'
 import { begin, commit, rollback } from '../lib/transaction'
+import { assertPatientCanBook } from '../lib/bookingLimits'
 
 const bookSchema = z.object({
   slotId: z.string().min(1, 'A slot must be selected.'),
@@ -88,6 +89,8 @@ const book: Endpoint = {
         if (new Date(existing.startsAt).getTime() <= Date.now()) {
           throw errors.slotExpired()
         }
+
+        await assertPatientCanBook(req, String(user.id), String(existing.doctor))
 
         // Layer 1. The filter is the guard, applied by the database at write time.
         const result = asSlot(

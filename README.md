@@ -129,9 +129,10 @@ Defaults are local Ollama (no paid key):
 
 ```bash
 brew install ollama
-ollama pull nomic-embed-text     # embeddings, 768 dimensions
-ollama pull llama3.2             # generation
-OLLAMA_HOST=0.0.0.0 ollama serve # 0.0.0.0 so Compose containers can reach it
+ollama pull nomic-embed-text        # embeddings, 768 dimensions
+ollama pull llama3.2                # generation (fast default)
+# optional: ollama pull deepseek-r1:1.5b
+OLLAMA_HOST=0.0.0.0 ollama serve    # 0.0.0.0 so Compose containers can reach it
 ```
 
 To switch providers, open RAG Settings and pick:
@@ -139,9 +140,10 @@ To switch providers, open RAG Settings and pick:
 | Chat | Embeddings |
 | ---- | ---------- |
 | Ollama (`llama3.2`) | Ollama (`nomic-embed-text`, 768) |
-| OpenAI (`gpt-4o-mini`) | OpenAI (`text-embedding-3-small`, 1536) |
+| Ollama (`deepseek-r1:1.5b`) | Ollama (`nomic-embed-text`, 768) |
+| OpenAI (`gpt-4o-mini`) | OpenAI (`text-embedding-3-small`, 1536) — re-ingest after changing dimensions |
 | Anthropic Claude (`claude-sonnet-4-5`) | Ollama, OpenAI, or Google (Claude has no embeddings API) |
-| Google Gemini (`gemini-2.0-flash`) | Google (`text-embedding-004`, 768) |
+| Google Gemini (`gemini-2.0-flash`) | Google (`gemini-embedding-001`, set dimensions to 768) or keep Ollama embeddings |
 
 Paste the API key in the CMS only. Changing embedding dimensions requires
 dropping `knowledge_vector_index` and re-ingesting every document, then

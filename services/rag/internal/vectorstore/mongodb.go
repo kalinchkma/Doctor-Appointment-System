@@ -196,9 +196,11 @@ func (s *Store) EnsureSearchIndex(ctx context.Context) error {
 		if err == nil {
 			return nil
 		}
-		// Retry transient mongot "not yet ready" errors.
+		// Retry transient mongot "not yet ready" / restart races.
 		if strings.Contains(err.Error(), "Search Index Management") ||
-			strings.Contains(err.Error(), "connecting to Search Index") {
+			strings.Contains(err.Error(), "connecting to Search Index") ||
+			strings.Contains(err.Error(), "InterruptedAtShutdown") ||
+			strings.Contains(err.Error(), "interrupted at shutdown") {
 			select {
 			case <-ctx.Done():
 				return fmt.Errorf("vector search index setup timed out waiting for mongot: %w", ctx.Err())

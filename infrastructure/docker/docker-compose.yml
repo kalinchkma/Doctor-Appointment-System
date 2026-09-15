@@ -96,7 +96,7 @@ services:
       RAG_STRONG_SCORE: ${RAG_STRONG_SCORE}
       RAG_MIN_CHUNKS: ${RAG_MIN_CHUNKS}
       RAG_MIN_COVERAGE: ${RAG_MIN_COVERAGE}
-      RAG_CHAT_TIMEOUT_SEC: ${RAG_CHAT_TIMEOUT_SEC:-60}
+      RAG_CHAT_TIMEOUT_SEC: ${RAG_CHAT_TIMEOUT_SEC:-180}
       PAYLOAD_INTERNAL_URL: http://cms:3000
     extra_hosts:
       - 'host.docker.internal:host-gateway'

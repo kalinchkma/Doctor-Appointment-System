@@ -52,7 +52,7 @@ async function availableSlots(limit = 5) {
   const { body } = await api(
     `/api/appointment-slots?where[status][equals]=available&limit=${limit}&sort=startsAt&depth=0`,
   )
-  return (body as unknown as { docs: { id: string }[] }).docs
+  return (body as unknown as { docs: { id: string; doctor: string }[] }).docs
 }
 
 async function main() {
@@ -60,7 +60,7 @@ async function main() {
 
   const alice = await newPatient('alice')
   const bob = await newPatient('bob')
-  const slots = await availableSlots(5)
+  const slots = await availableSlots(8)
 
   if (slots.length < 3) {
     console.error('need at least 3 available slots — run pnpm seed')
@@ -102,6 +102,26 @@ async function main() {
     patientOnRecord === String(alice.id),
     `record says ${patientOnRecord}`,
   )
+
+  // --- anti-abuse: one upcoming visit per doctor ---
+  const sameDoctorSlot = slots.find(
+    (slot) => slot.id !== slots[0]!.id && String(slot.doctor) === String(slots[0]!.doctor),
+  )
+  if (sameDoctorSlot) {
+    const secondSameDoctor = await api(
+      '/api/appointments/book',
+      { method: 'POST', body: JSON.stringify({ slotId: sameDoctorSlot.id }) },
+      alice.token,
+    )
+    check(
+      'second upcoming booking with same doctor is rejected',
+      secondSameDoctor.status === 409 &&
+        (secondSameDoctor.body as { code?: string }).code === 'ALREADY_BOOKED_WITH_DOCTOR',
+      `got ${secondSameDoctor.status} ${JSON.stringify(secondSameDoctor.body)}`,
+    )
+  } else {
+    check('second upcoming booking with same doctor is rejected', false, 'no same-doctor slot available')
+  }
 
   // --- user data isolation ---
   const crossRead = await api(`/api/appointments/${appointmentId}`, {}, bob.token)

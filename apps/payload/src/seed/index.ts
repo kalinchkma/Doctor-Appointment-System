@@ -3,6 +3,7 @@ import config from '../payload.config'
 import { seedChatQuestions } from './chatQuestions'
 import { seedDoctors } from './doctors'
 import { seedKnowledge, waitForKnowledgeIndex } from './knowledge'
+import { seedRagSettings } from './ragSettings'
 import { seedSlots } from './slots'
 
 // Run with: pnpm seed
@@ -11,6 +12,7 @@ import { seedSlots } from './slots'
 async function main() {
   const payload = await getPayload({ config })
 
+  await seedRagSettings(payload)
   await seedDoctors(payload)
   await seedSlots(payload)
   await seedChatQuestions(payload)

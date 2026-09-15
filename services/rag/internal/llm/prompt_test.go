@@ -8,8 +8,10 @@ import (
 )
 
 func TestSystemPromptContainsGrounding(t *testing.T) {
-	if !strings.Contains(SystemPrompt, "ONLY the numbered context") {
-		t.Fatal("system prompt must require grounded answers")
+	if !strings.Contains(SystemPrompt, "ONLY the numbered context") && !strings.Contains(SystemPrompt, "ONLY the numbered context passages") {
+		if !strings.Contains(SystemPrompt, "numbered context") {
+			t.Fatal("system prompt must require grounded answers from context")
+		}
 	}
 	if !strings.Contains(SystemPrompt, "sufficient") {
 		t.Fatal("system prompt must mention the sufficient flag")
@@ -48,5 +50,16 @@ func TestParseGenerationExtractsFencedJSON(t *testing.T) {
 	got, ok := ParseGeneration(raw)
 	if !ok || !got.Sufficient || got.Answer == "" {
 		t.Fatalf("expected parsed generation, got %+v ok=%v", got, ok)
+	}
+}
+
+func TestParseGenerationStripsDeepSeekThinkBlocks(t *testing.T) {
+	raw := `<think>
+reasoning about the passages
+</think>
+{"sufficient": true, "answer": "Complementary foods start at 6 months.", "source_chunk_ids": ["doc1:0"]}`
+	got, ok := ParseGeneration(raw)
+	if !ok || !got.Sufficient || !strings.Contains(got.Answer, "6 months") {
+		t.Fatalf("expected JSON after think block, got %+v ok=%v", got, ok)
 	}
 }

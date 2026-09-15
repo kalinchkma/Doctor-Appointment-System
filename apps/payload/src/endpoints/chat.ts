@@ -74,7 +74,7 @@ export const chatEndpoint: Endpoint = {
         'chat response from RAG',
       )
 
-      if (!result.sufficient) {
+      if (!result.sufficient && shouldRecordUnresolved(result.reason)) {
         await recordUnresolved(req, parsed.data.question, result.reason, result.topScore)
       }
 
@@ -121,6 +121,11 @@ async function recordUnresolved(
   } catch (error) {
     req.payload.logger.error({ err: error }, 'failed to record unresolved query')
   }
+}
+
+function shouldRecordUnresolved(reason?: string): boolean {
+  // Chitchat / off-topic redirects are intentional, not missing medical coverage.
+  return reason !== 'greeting' && reason !== 'identity' && reason !== 'off_topic'
 }
 
 export const chatEndpoints: Endpoint[] = [chatEndpoint]

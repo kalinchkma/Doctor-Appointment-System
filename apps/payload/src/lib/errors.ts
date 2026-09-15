@@ -11,6 +11,8 @@ export const ErrorCode = {
   SLOT_EXPIRED: 'SLOT_EXPIRED',
   SLOT_OVERLAP: 'SLOT_OVERLAP',
   SLOT_DUPLICATE: 'SLOT_DUPLICATE',
+  BOOKING_LIMIT: 'BOOKING_LIMIT',
+  ALREADY_BOOKED_WITH_DOCTOR: 'ALREADY_BOOKED_WITH_DOCTOR',
   APPOINTMENT_NOT_FOUND: 'APPOINTMENT_NOT_FOUND',
   ALREADY_CANCELLED: 'ALREADY_CANCELLED',
   ASSISTANT_UNAVAILABLE: 'ASSISTANT_UNAVAILABLE',
@@ -54,6 +56,18 @@ export const errors = {
       ErrorCode.SLOT_DUPLICATE,
       409,
       'A slot for this doctor at this exact time already exists. Choose a different start time.',
+    ),
+  bookingLimit: (max: number) =>
+    new ApiError(
+      ErrorCode.BOOKING_LIMIT,
+      409,
+      `You already have ${max} upcoming appointment${max === 1 ? '' : 's'}. Cancel one before booking another.`,
+    ),
+  alreadyBookedWithDoctor: () =>
+    new ApiError(
+      ErrorCode.ALREADY_BOOKED_WITH_DOCTOR,
+      409,
+      'You already have an upcoming appointment with this doctor. Cancel it before booking another time.',
     ),
   appointmentNotFound: () =>
     new ApiError(ErrorCode.APPOINTMENT_NOT_FOUND, 404, 'That appointment could not be found.'),

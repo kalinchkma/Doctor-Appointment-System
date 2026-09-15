@@ -463,7 +463,7 @@ project needs no paid API key and a reviewer can run it offline:
 ```
 LLM_BASE_URL=http://host.docker.internal:11434/v1
 LLM_API_KEY=ollama                 # Ollama ignores it; the header must still be present
-LLM_MODEL=llama3.2
+LLM_MODEL=deepseek-r1:latest
 EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1
 EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_DIMENSIONS=768           # nomic-embed-text output size
@@ -478,7 +478,7 @@ Four Ollama-specific consequences to design around:
 
 1. **Ollama is not installed on this machine yet.** Add it to the prerequisites
    and do it before Phase 4: `brew install ollama`, then
-   `ollama pull nomic-embed-text` and `ollama pull llama3.2`.
+   `ollama pull nomic-embed-text` and `ollama pull deepseek-r1:latest`.
 2. **It runs on the host, not in Compose.** Containers reach it through
    `host.docker.internal` (already wired up via `extra_hosts` in the Compose
    file). Ollama must be started with `OLLAMA_HOST=0.0.0.0` or it binds to
