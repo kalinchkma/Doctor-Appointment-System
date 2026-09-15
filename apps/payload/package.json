@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next dev",
-    "build": "pnpm generate:types && cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next build",
+    "build": "pnpm generate:types && cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next build --webpack",
     "start": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next start",
     "typecheck": "tsc --noEmit",
     "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",

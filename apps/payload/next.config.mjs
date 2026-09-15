@@ -1,3 +1,4 @@
+import { withPayload } from '@payloadcms/next/withPayload'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
@@ -11,7 +12,7 @@ if (existsSync(rootEnv)) {
 }
 
 /** @type {import('next').NextConfig} */
-export default {
+const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(process.cwd(), '../../'),
   transpilePackages: ['payload'],
@@ -19,3 +20,7 @@ export default {
   // keeps its guidance in docs/, so the generated files would only be noise in git.
   agentRules: false,
 }
+
+// withPayload injects the webpack/sass options Payload's admin UI needs. Without it,
+// production Turbopack builds often ship an incomplete stylesheet set.
+export default withPayload(nextConfig)

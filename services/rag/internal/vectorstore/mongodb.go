@@ -3,6 +3,7 @@ package vectorstore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -153,10 +154,60 @@ type searchIndexView struct {
 	} `bson:"latestDefinition"`
 }
 
+// ensureCollection creates the collection explicitly if it does not yet exist.
+// MongoDB (including Atlas Local) only creates a collection on first document write, but
+// the Atlas Search index API requires the collection to already exist before CreateOne can
+// succeed. Calling CreateCollection on an existing collection is a no-op (CommandNotFound /
+// NamespaceExists is silently swallowed).
+func (s *Store) ensureCollection(ctx context.Context) error {
+	err := s.chunks.Database().CreateCollection(ctx, s.chunks.Name())
+	if err == nil {
+		return nil
+	}
+	// "already exists" is not an error we care about.
+	if cmdErr, ok := err.(mongo.CommandError); ok && cmdErr.Code == 48 /* NamespaceExists */ {
+		return nil
+	}
+	return fmt.Errorf("create collection %s: %w", s.chunks.Name(), err)
+}
+
 // EnsureSearchIndex creates knowledge_vector_index if missing and waits until READY.
 // If an existing index has a different dimension count, it fails rather than silently
 // mixing incompatible embeddings.
+//
+// Atlas Local runs a mongot sidecar for search index management that starts a few
+// seconds after mongod is healthy. Any SearchIndexes() call during that window returns
+// "Error connecting to Search Index Management service". This function retries the
+// entire setup loop (with a 5-second back-off) until the context deadline so transient
+// mongot startup errors don't permanently fail the index setup.
 func (s *Store) EnsureSearchIndex(ctx context.Context) error {
+	// The Atlas Search index API requires the collection to exist before CreateOne is
+	// called. On a fresh deployment the collection hasn't been written to yet, so we
+	// create it explicitly to avoid a NamespaceNotFound error.
+	if err := s.ensureCollection(ctx); err != nil {
+		return err
+	}
+
+	for {
+		err := s.ensureSearchIndexOnce(ctx)
+		if err == nil {
+			return nil
+		}
+		// Retry transient mongot "not yet ready" errors.
+		if strings.Contains(err.Error(), "Search Index Management") ||
+			strings.Contains(err.Error(), "connecting to Search Index") {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("vector search index setup timed out waiting for mongot: %w", ctx.Err())
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+		return err
+	}
+}
+
+func (s *Store) ensureSearchIndexOnce(ctx context.Context) error {
 	existing, err := s.lookupIndex(ctx)
 	if err != nil {
 		return err
