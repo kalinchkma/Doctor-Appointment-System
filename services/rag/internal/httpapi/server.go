@@ -1,27 +1,151 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
-	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
+	"github.com/example/doctor-appointment-rag/services/rag/internal/config"
+	"github.com/example/doctor-appointment-rag/services/rag/internal/pipeline"
 )
 
-// New exposes only compose-network endpoints. Payload authenticates each call with RAG_INTERNAL_SECRET.
-func New(store *vectorstore.Store, secret string) http.Handler {
+type Server struct {
+	pipe    *pipeline.Pipeline
+	secret  string
+	slots   chan struct{}
+	timeout time.Duration
+}
+
+func New(cfg config.Config, pipe *pipeline.Pipeline) http.Handler {
+	s := &Server{
+		pipe:    pipe,
+		secret:  cfg.InternalSecret,
+		slots:   make(chan struct{}, cfg.MaxConcurrency),
+		timeout: time.Duration(cfg.ChatTimeoutSec) * time.Second,
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]string{"status": "ok"}) })
-	mux.Handle("POST /internal/v1/documents/sync", internal(secret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The future ingestion pipeline will download the Payload-managed file, extract text,
-		// embed chunks, then call store.Upsert. Keeping this boundary now avoids exposing RAG publicly.
-		writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted", "message": "ingestion pipeline scaffolded"})
-	})))
-	mux.Handle("POST /internal/v1/chat", internal(secret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Retrieval and grounded LLM generation belong here. Return an explicit safe fallback until configured.
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"answer": "The RAG retrieval pipeline has not been configured yet."})
-	})))
+	mux.HandleFunc("GET /healthz", s.health)
+	mux.Handle("POST /internal/v1/documents/sync", s.internal(s.syncDocument))
+	mux.Handle("DELETE /internal/v1/documents/{id}", s.internal(s.deleteDocument))
+	mux.Handle("POST /internal/v1/chat", s.internal(s.chat))
 	return mux
 }
-func internal(secret string, next http.Handler) http.Handler { return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-RAG-Internal-Secret")), []byte(secret)) != 1 { writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"}); return }; next.ServeHTTP(w, r) }) }
-func writeJSON(w http.ResponseWriter, code int, body any) { w.Header().Set("Content-Type", "application/json"); w.WriteHeader(code); _ = json.NewEncoder(w).Encode(body) }
+
+func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) syncDocument(w http.ResponseWriter, r *http.Request) {
+	var req pipeline.SyncRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if req.DocumentID == "" || req.FileURL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "documentId and fileUrl are required"})
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := s.pipe.IngestURL(ctx, req); err != nil {
+			slog.Error("ingest failed", "documentId", req.DocumentID, "error", err)
+			s.pipe.ReportStatus(ctx, req.DocumentID, "failed", safeError(err))
+			return
+		}
+		s.pipe.ReportStatus(ctx, req.DocumentID, "indexed", "")
+	}()
+
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
+func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "document id is required"})
+		return
+	}
+	if err := s.pipe.Delete(r.Context(), id); err != nil {
+		slog.Error("delete vectors failed", "documentId", id, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), s.timeout)
+	defer cancel()
+
+	select {
+	case s.slots <- struct{}{}:
+		defer func() { <-s.slots }()
+	case <-ctx.Done():
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "The assistant is busy. Please try again.",
+		})
+		return
+	}
+
+	var body struct {
+		Question string `json:"question"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Question) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "question is required"})
+		return
+	}
+
+	result, err := s.pipe.Ask(ctx, body.Question)
+	if err != nil {
+		slog.Error("chat failed", "error", err, "requestId", r.Header.Get("X-Request-Id"))
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			writeJSON(w, http.StatusGatewayTimeout, map[string]string{
+				"error": "The assistant is temporarily unavailable. Please try again.",
+			})
+			return
+		}
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": "The assistant is temporarily unavailable. Please try again.",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) internal(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		provided := r.Header.Get("X-RAG-Internal-Secret")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.secret)) != 1 {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			return
+		}
+		next(w, r)
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		slog.Error("write response", "error", err)
+	}
+}
+
+func safeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	msg = strings.ReplaceAll(msg, "sk-", "[redacted]")
+	if len(msg) > 300 {
+		return msg[:300]
+	}
+	return msg
+}

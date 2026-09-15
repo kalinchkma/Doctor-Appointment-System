@@ -5,26 +5,34 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next dev",
-    "build": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next build",
+    "build": "pnpm generate:types && cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next build",
     "start": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts next start",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
+    "test:booking": "tsx --env-file-if-exists=../../.env tests/booking-rules.ts",
+    "test:concurrency": "tsx --env-file-if-exists=../../.env tests/booking-concurrency.ts",
+    "test:chat": "tsx --env-file-if-exists=../../.env tests/chat-rules.ts",
+    "lint": "eslint .",
     "generate:types": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload generate:types",
     "generate:importmap": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload generate:importmap"
   },
   "dependencies": {
-    "@payloadcms/db-mongodb": "latest",
-    "@payloadcms/next": "latest",
-    "@payloadcms/richtext-lexical": "latest",
-    "cross-env": "latest",
-    "next": "latest",
-    "payload": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "sharp": "latest"
+    "@payloadcms/db-mongodb": "^3.89.0",
+    "@payloadcms/next": "^3.89.0",
+    "@payloadcms/richtext-lexical": "^3.89.0",
+    "cross-env": "^10.1.0",
+    "next": "^16.3.5",
+    "payload": "^3.89.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sharp": "^0.35.4",
+    "zod": "^4.6.4"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "typescript": "latest"
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.22.4",
+    "typescript": "^7.0.2"
   }
 }

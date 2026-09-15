@@ -1,4 +1,10 @@
 packages:
-  - "apps/*"
+  - 'apps/*'
+
+# services/rag is intentionally outside the pnpm workspace: it is an independent Go
+# module (ADR-001) and shares only the git repository.
+
+# pnpm 12 blocks lifecycle scripts by default. esbuild ships a platform binary and needs
+# its postinstall to run; nothing else in the tree requires one.
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true

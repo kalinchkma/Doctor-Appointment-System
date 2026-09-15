@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "cap:sync": "capacitor sync",
     "android": "capacitor open android",
     "ios": "capacitor open ios",
@@ -14,23 +15,25 @@
     "run:ios": "capacitor run ios"
   },
   "dependencies": {
-    "@capacitor/android": "latest",
-    "@capacitor/core": "latest",
-    "@capacitor/ios": "latest",
-    "@ionic/react": "latest",
-    "@ionic/react-router": "latest",
-    "ionicons": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-router": "latest",
-    "react-router-dom": "latest"
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@ionic/react": "^9.0.3",
+    "@ionic/react-router": "^9.0.3",
+    "ionicons": "^8.1.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^6.30.6",
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "@capacitor/cli": "^8.5.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
   }
 }

@@ -1,0 +1,61 @@
+# Labelled questions against docs/knowledge/*.pdf.
+# Used to calibrate RAG_MIN_SCORE / RAG_STRONG_SCORE / RAG_MIN_CHUNKS / RAG_MIN_COVERAGE.
+# Prefer zero fabrications (false "sufficient") over extra cautious fallbacks.
+
+thresholds:
+  minScore: 0.62
+  strongScore: 0.74
+  minChunks: 2
+  minCoverage: 0.25
+
+answerable:
+  - question: Why is folic acid important during pregnancy?
+    expect: sufficient
+    notes: Explicitly answered by pregnancy-nutrition.pdf
+  - question: Which foods are commonly advised against during pregnancy?
+    expect: sufficient
+  - question: When are complementary foods usually introduced?
+    expect: sufficient
+  - question: Why should honey not be given to infants under twelve months?
+    expect: sufficient
+  - question: What warning signs in pregnancy need same-day medical attention?
+    expect: sufficient
+  - question: How often are prenatal visits scheduled after 28 weeks?
+    expect: sufficient
+  - question: What can help the body absorb plant iron?
+    expect: sufficient
+  - question: Is cow's milk a main drink before twelve months?
+    expect: sufficient
+  - question: What does a typical prenatal visit include?
+    expect: sufficient
+  - question: What drinks are preferred for hydration in pregnancy?
+    expect: sufficient
+
+unanswerable:
+  - question: What is the capital of France?
+    expect: fallback
+    reason: no_results
+  - question: How do I reset a Windows password?
+    expect: fallback
+    reason: no_results
+  - question: What is the correct insulin dose for gestational diabetes?
+    expect: fallback
+  - question: Can I take ibuprofen at 32 weeks?
+    expect: fallback
+  - question: How is a caesarean section performed step by step?
+    expect: fallback
+
+weakly_related:
+  - question: What paracetamol dosage is safe in the third trimester?
+    expect: fallback
+    reason: low_coverage
+    notes: Assignment Test 3 — pregnancy corpus, no dosage
+  - question: Which antidepressant is safest in breastfeeding?
+    expect: fallback
+    reason: low_coverage
+  - question: What is the MMR vaccine schedule for a two-year-old?
+    expect: fallback
+  - question: How much vitamin A is toxic in pregnancy?
+    expect: fallback
+  - question: What antibiotic treats a urinary infection at 20 weeks?
+    expect: fallback

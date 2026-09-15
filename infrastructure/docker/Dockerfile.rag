@@ -1,11 +1,17 @@
 FROM golang:1.26-alpine AS build
 WORKDIR /src
-COPY services/rag/go.mod services/rag/go.sum* ./
+COPY services/rag/go.mod services/rag/go.sum ./
 RUN go mod download
 COPY services/rag ./
-RUN CGO_ENABLED=0 go build -o /rag ./cmd/server
+# CGO must stay disabled for the distroless static base, which is why the PDF
+# extractor has to be a pure-Go library rather than MuPDF bindings.
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /rag ./cmd/server
+
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /rag /rag
 EXPOSE 8080
 USER nonroot:nonroot
+# Distroless has no shell, so Compose health checks run the binary's own probe mode.
+HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=10s \
+  CMD ["/rag", "-healthcheck"]
 ENTRYPOINT ["/rag"]

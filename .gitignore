@@ -2,5 +2,22 @@ node_modules/
 .next/
 dist/
 .env
+.env.local
 *.log
 coverage/
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# Compiled output of apps/mobile/vite.config.ts
+apps/mobile/vite.config.js
+apps/mobile/vite.config.d.ts
+
+# Payload upload storage. payload-types.ts is generated but committed on purpose,
+# so a fresh clone can typecheck before the first build.
+apps/payload/media/
+apps/payload/knowledge-files/
+
+# Capacitor copies the built web bundle into the native projects
+apps/mobile/android/app/src/main/assets/public/
+apps/mobile/ios/App/App/public/

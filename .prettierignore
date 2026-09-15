@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+coverage
+pnpm-lock.yaml
+apps/mobile/android
+apps/mobile/ios
+apps/payload/src/payload-types.ts
+apps/payload/src/app/(payload)/admin/importMap.js
+services/rag
+docs/plan-docs/*.docx

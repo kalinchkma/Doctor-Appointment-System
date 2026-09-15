@@ -4,5 +4,13 @@ import type { ReactNode } from 'react'
 import { importMap } from './admin/importMap'
 
 export default function Layout({ children }: { children: ReactNode }) {
-  return <RootLayout config={config} importMap={importMap} serverFunction={(args) => handleServerFunctions({ ...args, config, importMap })}>{children}</RootLayout>
+  return (
+    <RootLayout
+      config={config}
+      importMap={importMap}
+      serverFunction={(args) => handleServerFunctions({ ...args, config, importMap })}
+    >
+      {children}
+    </RootLayout>
+  )
 }
