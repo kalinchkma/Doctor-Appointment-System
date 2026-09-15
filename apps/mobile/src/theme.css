@@ -237,29 +237,19 @@
   border-radius: 20px;
 }
 
-.suggested-questions {
-  display: grid;
-  gap: 8px;
+.chat-toolbar {
+  --padding-top: 8px;
+  --padding-bottom: 8px;
 }
 
-.suggested-label {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--app-muted);
+.suggested-select {
+  --background: transparent;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  margin-bottom: 8px;
 }
 
-.suggested-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.suggested-chips ion-chip {
-  margin: 0;
+.suggested-select ion-select {
+  width: 100%;
   max-width: 100%;
-  height: auto;
-  white-space: normal;
-  line-height: 1.35;
-  padding-block: 8px;
 }

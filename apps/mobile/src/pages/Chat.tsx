@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   IonButton,
-  IonChip,
   IonContent,
   IonFooter,
   IonIcon,
   IonInput,
+  IonItem,
+  IonLabel,
   IonPage,
+  IonSelect,
+  IonSelectOption,
   IonSpinner,
   IonToolbar,
 } from '@ionic/react'
@@ -36,8 +39,8 @@ export function Chat() {
   const [question, setQuestion] = useState('')
   const [thinking, setThinking] = useState(false)
   const [suggestions, setSuggestions] = useState<ChatSuggestedQuestion[]>([])
+  const [selectedSuggestion, setSelectedSuggestion] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
-  const onlyGreeting = messages.length === 1 && messages[0]?.id === 'greeting'
 
   useEffect(() => {
     let cancelled = false
@@ -57,39 +60,52 @@ export function Chat() {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
 
-  const ask = useCallback(async (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || thinking) return
+  const ask = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || thinking) return
 
-    setMessages((current) => [...current, { id: `q-${Date.now()}`, author: 'user', text: trimmed }])
-    setQuestion('')
-    setThinking(true)
-
-    try {
-      const reply = await askChatbot(trimmed)
       setMessages((current) => [
         ...current,
-        {
-          id: `a-${Date.now()}`,
-          author: 'assistant',
-          text: reply.answer,
-          sources: reply.grounded ? reply.sources : [],
-          fallback: !reply.grounded,
-        },
+        { id: `q-${Date.now()}`, author: 'user', text: trimmed },
       ])
-    } catch (reason) {
-      setMessages((current) => [
-        ...current,
-        { id: `e-${Date.now()}`, author: 'assistant', text: messageFor(reason), failed: true },
-      ])
-    } finally {
-      setThinking(false)
-    }
-  }, [thinking])
+      setQuestion('')
+      setSelectedSuggestion('')
+      setThinking(true)
+
+      try {
+        const reply = await askChatbot(trimmed)
+        setMessages((current) => [
+          ...current,
+          {
+            id: `a-${Date.now()}`,
+            author: 'assistant',
+            text: reply.answer,
+            sources: reply.grounded ? reply.sources : [],
+            fallback: !reply.grounded,
+          },
+        ])
+      } catch (reason) {
+        setMessages((current) => [
+          ...current,
+          { id: `e-${Date.now()}`, author: 'assistant', text: messageFor(reason), failed: true },
+        ])
+      } finally {
+        setThinking(false)
+      }
+    },
+    [thinking],
+  )
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     await ask(question)
+  }
+
+  const onSuggestionChange = (value: string | undefined | null) => {
+    const next = value ?? ''
+    setSelectedSuggestion(next)
+    if (next) void ask(next)
   }
 
   return (
@@ -115,23 +131,6 @@ export function Chat() {
               )}
             </div>
           ))}
-          {onlyGreeting && suggestions.length > 0 && !thinking && (
-            <div className="suggested-questions" aria-label="Suggested questions">
-              <p className="suggested-label">Try a question</p>
-              <div className="suggested-chips">
-                {suggestions.map((item) => (
-                  <IonChip
-                    key={item.id}
-                    outline
-                    disabled={thinking}
-                    onClick={() => void ask(item.question)}
-                  >
-                    {item.question}
-                  </IonChip>
-                ))}
-              </div>
-            </div>
-          )}
           {thinking && (
             <div className="bubble assistant">
               <IonSpinner name="dots" />
@@ -141,11 +140,30 @@ export function Chat() {
         </div>
       </IonContent>
       <IonFooter>
-        <IonToolbar className="ion-padding-horizontal">
+        <IonToolbar className="ion-padding-horizontal chat-toolbar">
+          {suggestions.length > 0 && (
+            <IonItem lines="none" className="suggested-select" detail={false}>
+              <IonLabel position="stacked">Suggested questions</IonLabel>
+              <IonSelect
+                interface="action-sheet"
+                placeholder="Choose a pre-built question"
+                value={selectedSuggestion || undefined}
+                disabled={thinking}
+                aria-label="Suggested questions"
+                onIonChange={(event) => onSuggestionChange(event.detail.value)}
+              >
+                {suggestions.map((item) => (
+                  <IonSelectOption key={item.id} value={item.question}>
+                    {item.question}
+                  </IonSelectOption>
+                ))}
+              </IonSelect>
+            </IonItem>
+          )}
           <form onSubmit={submit} className="chat-form">
             <IonInput
               value={question}
-              placeholder="Ask a health question"
+              placeholder="Or type your own question"
               aria-label="Ask a health question"
               onIonInput={(event) => setQuestion(event.detail.value ?? '')}
             />

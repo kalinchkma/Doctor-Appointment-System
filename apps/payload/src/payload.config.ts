@@ -23,14 +23,24 @@ import { storagePlugins } from './lib/storage'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-const publicOrigins = [
+const serverURL = (process.env.PAYLOAD_PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '')
+
+// CSRF checks the browser Origin against this list before accepting the auth cookie.
+// The admin panel Origin (PAYLOAD_PUBLIC_URL) must be included or logout/login cookie
+// flows from /admin silently fail — cookie JWT extraction returns null.
+const trustedOrigins = [
+  serverURL,
   process.env.MOBILE_ORIGIN,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
   'http://localhost',
   'capacitor://localhost',
-].filter(Boolean) as string[]
+].filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index)
 
 export default buildConfig({
+  serverURL,
   admin: { user: Users.slug, importMap: { baseDir: path.resolve(dirname) } },
   collections: [
     Users,
@@ -54,8 +64,8 @@ export default buildConfig({
   // Payload needs the sharp instance handed to it, not merely installed, or upload
   // collections silently skip their configured imageSizes.
   sharp,
-  cors: publicOrigins,
-  csrf: publicOrigins,
+  cors: trustedOrigins,
+  csrf: trustedOrigins,
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   onInit: ensureIndexes,
 })
