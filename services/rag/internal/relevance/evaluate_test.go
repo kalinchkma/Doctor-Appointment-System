@@ -21,7 +21,7 @@ func chunks(scores []float64, texts ...string) []vectorstore.ScoredChunk {
 	return out
 }
 
-var gates = Gates{MinScore: 0.62, StrongScore: 0.74, MinChunks: 2, MinCoverage: 0.25}
+var gates = Gates{MinScore: 0.50, StrongScore: 0.58, MinChunks: 1, MinCoverage: 0.25}
 
 func TestEvaluateClearlyAnswerable(t *testing.T) {
 	got := Evaluate(
@@ -48,10 +48,36 @@ func TestEvaluateOffDomain(t *testing.T) {
 	}
 }
 
-func TestEvaluateSingleWeakMatch(t *testing.T) {
-	got := Evaluate(chunks([]float64{0.64}, "pregnancy nutrition guide"), "What should I eat in pregnancy?", gates)
+func TestEvaluateBelowFloor(t *testing.T) {
+	got := Evaluate(chunks([]float64{0.49}, "pregnancy nutrition guide"), "What should I eat in pregnancy?", gates)
+	if got.Pass || got.Reason != ReasonNoResults {
+		t.Fatalf("below the score floor should be no_results, got %+v", got)
+	}
+}
+
+func TestEvaluateLexicalRescue(t *testing.T) {
+	got := Evaluate(
+		chunks(
+			[]float64{0.54, 0.53},
+			"energy needs increase during pregnancy but they do not double",
+			"pregnancy nutrition covers energy protein and micronutrients",
+		),
+		"Does energy need to double during pregnancy?",
+		gates,
+	)
+	if !got.Pass {
+		t.Fatalf("moderate scores with strong lexical coverage should pass, got %+v", got)
+	}
+}
+
+func TestEvaluateModerateUnrelated(t *testing.T) {
+	got := Evaluate(
+		chunks([]float64{0.54, 0.53}, "clinic opening hours and parking", "staff rota for next week"),
+		"Does energy need to double during pregnancy?",
+		gates,
+	)
 	if got.Pass || got.Reason != ReasonBelowThreshold {
-		t.Fatalf("single weak match should be below_threshold, got %+v", got)
+		t.Fatalf("moderate scores with poor coverage should be below_threshold, got %+v", got)
 	}
 }
 
@@ -73,10 +99,10 @@ func TestEvaluateRelatedTopicWrongQuestion(t *testing.T) {
 	}
 }
 
-func TestEvaluateBoundaryAtFloor(t *testing.T) {
+func TestEvaluateBoundaryWithCoverage(t *testing.T) {
 	got := Evaluate(
 		chunks(
-			[]float64{0.62, 0.62, 0.62},
+			[]float64{0.50, 0.50, 0.50},
 			"folic acid before conception",
 			"folic acid first twelve weeks",
 			"folic acid neural tube",
@@ -84,8 +110,7 @@ func TestEvaluateBoundaryAtFloor(t *testing.T) {
 		"Why is folic acid used in pregnancy?",
 		gates,
 	)
-	// Scores sit exactly on the floor, none reach the strong threshold, so gate 2 fails.
-	if got.Pass || got.Reason != ReasonBelowThreshold {
-		t.Fatalf("exactly-at-floor should be below_threshold, got %+v", got)
+	if !got.Pass {
+		t.Fatalf("floor scores with lexical coverage should pass, got %+v", got)
 	}
 }

@@ -33,14 +33,14 @@ func FromEnv() (Config, error) {
 		InternalSecret:   env("RAG_INTERNAL_SECRET", "development-internal-secret"),
 		PayloadURL:       strings.TrimRight(env("PAYLOAD_INTERNAL_URL", "http://127.0.0.1:3000"), "/"),
 		MaxConcurrency:   envInt("RAG_MAX_CONCURRENCY", 4),
-		MinScore:         envFloat("RAG_MIN_SCORE", 0.62),
-		StrongScore:      envFloat("RAG_STRONG_SCORE", 0.74),
-		MinChunks:        envInt("RAG_MIN_CHUNKS", 2),
+		MinScore:         envFloat("RAG_MIN_SCORE", 0.50),
+		StrongScore:      envFloat("RAG_STRONG_SCORE", 0.58),
+		MinChunks:        envInt("RAG_MIN_CHUNKS", 1),
 		MinCoverage:      envFloat("RAG_MIN_COVERAGE", 0.25),
 		EmbedDimensions:  envInt("EMBEDDING_DIMENSIONS", 768),
 		IngestTimeoutSec: envInt("RAG_INGEST_TIMEOUT_SEC", 120),
 		// 60s leaves headroom for a cold Ollama model load after retrieval.
-		ChatTimeoutSec:   envInt("RAG_CHAT_TIMEOUT_SEC", 180),
+		ChatTimeoutSec: envInt("RAG_CHAT_TIMEOUT_SEC", 180),
 	}
 
 	if cfg.EmbedDimensions < 8 {

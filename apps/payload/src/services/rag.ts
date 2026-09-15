@@ -4,9 +4,10 @@ const secret = () => process.env.RAG_INTERNAL_SECRET || ''
 export type RagChatResult = {
   sufficient: boolean
   answer: string
-  sources: { title: string; page?: number }[]
+  sources: { title: string; page?: number; score?: number }[]
   reason?: string
   topScore?: number
+  confidence?: number
 }
 
 async function ragFetch(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {

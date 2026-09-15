@@ -1,5 +1,8 @@
 import type { ChatProvider, EmbedProvider, RagRuntimeSettings } from './settings'
 
+export type EmbedTask = 'document' | 'query'
+export type CompletionMode = 'json' | 'text'
+
 const ollamaFallback = () =>
   (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1').replace(/\/$/, '')
 
@@ -64,6 +67,10 @@ function providerBaseUrl(
     return fallback.replace(/\/$/, '')
   }
   return value
+}
+
+function ollamaOrigin(configured: string): string {
+  return providerBaseUrl('ollama', configured, ollamaFallback()).replace(/\/v1$/i, '')
 }
 
 function chatEndpoint(settings: RagRuntimeSettings): { url: string; headers: Record<string, string> } {
@@ -142,13 +149,85 @@ function l2Normalize(values: number[]): number[] {
   return values.map((v) => v / norm)
 }
 
+/**
+ * nomic-embed-text is asymmetric: documents and queries must use different prefixes
+ * or Atlas cosine scores collapse near 0.5 (orthogonal) even for seeded questions.
+ */
+function applyEmbedPrefix(model: string, texts: string[], task: EmbedTask): string[] {
+  if (!/nomic-embed/i.test(model)) return texts
+  const prefix = task === 'query' ? 'search_query: ' : 'search_document: '
+  return texts.map((text) => {
+    const trimmed = text.trim()
+    if (/^search_(query|document):/i.test(trimmed)) return text
+    return prefix + text
+  })
+}
+
+function parseOpenAIEmbeddingData(data: unknown, expected: number): number[][] {
+  if (!Array.isArray(data) || data.length !== expected) {
+    throw new Error(
+      `embeddings: expected ${expected} vectors, got ${Array.isArray(data) ? data.length : 0}`,
+    )
+  }
+
+  const rows = data as { index?: number; embedding?: number[] }[]
+  const sequential = rows.some((item) => typeof item?.index !== 'number')
+  const out = new Array<number[]>(expected)
+
+  for (let i = 0; i < rows.length; i++) {
+    const item = rows[i]
+    const idx = sequential || typeof item?.index !== 'number' ? i : item.index
+    if (idx < 0 || idx >= expected) {
+      throw new Error(`embeddings: out-of-range index ${idx}`)
+    }
+    if (!item?.embedding?.length) {
+      throw new Error('embeddings: empty vector')
+    }
+    out[idx] = item.embedding
+  }
+  if (out.some((vec) => !vec?.length)) {
+    throw new Error('embeddings: empty vector')
+  }
+  return out
+}
+
+function nativeOllamaEmbeddings(parsed: Record<string, unknown>): number[][] {
+  if (Array.isArray(parsed.embeddings) && parsed.embeddings.length > 0) {
+    return parsed.embeddings as number[][]
+  }
+  if (Array.isArray(parsed.embedding) && typeof parsed.embedding[0] === 'number') {
+    return [parsed.embedding as number[]]
+  }
+  return []
+}
+
+async function embedOllama(settings: RagRuntimeSettings, texts: string[]): Promise<number[][]> {
+  const origin = ollamaOrigin(settings.embedBaseUrl)
+  const headers = { Authorization: `Bearer ${settings.embedApiKey || 'ollama'}` }
+
+  try {
+    const parsed = await postJson(`${origin}/api/embed`, headers, { model: settings.embedModel, input: texts }, 60_000)
+    const embeddings = nativeOllamaEmbeddings(parsed)
+    if (embeddings.length === texts.length && embeddings.every((vec) => vec?.length)) {
+      return embeddings.map(l2Normalize)
+    }
+  } catch {
+    // Fall through to the OpenAI-compatible /v1/embeddings path.
+  }
+
+  const { url, headers: compatHeaders } = embedEndpoint(settings)
+  const parsed = await postJson(url, compatHeaders, { model: settings.embedModel, input: texts }, 60_000)
+  return parseOpenAIEmbeddingData(parsed.data, texts.length).map(l2Normalize)
+}
+
 export async function proxyEmbeddings(
   settings: RagRuntimeSettings,
   input: string[],
+  task: EmbedTask = 'document',
 ): Promise<number[][]> {
   if (input.length === 0) return []
 
-  const { url, headers } = embedEndpoint(settings)
+  const texts = applyEmbedPrefix(settings.embedModel, input, task)
 
   if (settings.embedProvider === 'google') {
     if (!settings.embedApiKey?.trim()) {
@@ -156,13 +235,15 @@ export async function proxyEmbeddings(
     }
     const model = resolveGoogleEmbedModel(settings.embedModel)
     const dims = settings.embedDimensions || 768
+    const { url, headers } = embedEndpoint(settings)
     const parsed = await postJson(
       url,
       headers,
       {
-        requests: input.map((text) => ({
+        requests: texts.map((text) => ({
           model: `models/${model}`,
           content: { parts: [{ text }] },
+          taskType: task === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
           // Keep Atlas index dims stable; gemini-embedding-001 defaults to 3072.
           outputDimensionality: dims,
         })),
@@ -170,8 +251,8 @@ export async function proxyEmbeddings(
       60_000,
     )
     const embeddings = (parsed.embeddings as { values?: number[] }[] | undefined) ?? []
-    if (embeddings.length !== input.length) {
-      throw new Error(`embeddings: expected ${input.length} vectors, got ${embeddings.length}`)
+    if (embeddings.length !== texts.length) {
+      throw new Error(`embeddings: expected ${texts.length} vectors, got ${embeddings.length}`)
     }
     return embeddings.map((item) => {
       const values = item.values ?? []
@@ -185,30 +266,34 @@ export async function proxyEmbeddings(
     throw new Error('OpenAI embedding API key is missing in RAG Settings')
   }
 
+  if (settings.embedProvider === 'ollama') {
+    return embedOllama(settings, texts)
+  }
+
+  const { url, headers } = embedEndpoint(settings)
   const parsed = await postJson(
     url,
     headers,
-    { model: settings.embedModel, input, ...(settings.embedProvider === 'openai' ? { encoding_format: 'float' } : {}) },
+    {
+      model: settings.embedModel,
+      input: texts,
+      encoding_format: 'float',
+    },
     60_000,
   )
-  const data = (parsed.data as { index: number; embedding: number[] }[] | undefined) ?? []
-  const vectors = new Array<number[]>(input.length)
-  for (const item of data) {
-    vectors[item.index] = item.embedding
-  }
-  if (vectors.some((item) => !item?.length)) {
-    throw new Error('embeddings: empty vector')
-  }
-  return vectors
+  return parseOpenAIEmbeddingData(parsed.data, texts.length).map(l2Normalize)
 }
 
 export async function proxyCompletion(
   settings: RagRuntimeSettings,
   system: string,
   user: string,
+  mode: CompletionMode = 'json',
 ): Promise<string> {
   const { url, headers } = chatEndpoint(settings)
   const provider: ChatProvider = settings.chatProvider
+  const temperature = mode === 'json' ? 0 : 0.4
+  const wantJson = mode === 'json'
 
   if (provider === 'anthropic') {
     if (!settings.chatApiKey?.trim()) throw new Error('Anthropic API key is missing in RAG Settings')
@@ -218,7 +303,7 @@ export async function proxyCompletion(
       {
         model: settings.chatModel,
         max_tokens: 1024,
-        temperature: 0,
+        temperature,
         system,
         messages: [{ role: 'user', content: user }],
       },
@@ -239,9 +324,9 @@ export async function proxyCompletion(
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
         generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
+          temperature,
           maxOutputTokens: 1024,
+          ...(wantJson ? { responseMimeType: 'application/json' } : {}),
         },
       },
       90_000,
@@ -267,9 +352,9 @@ export async function proxyCompletion(
     headers,
     {
       model: settings.chatModel,
-      temperature: 0,
+      temperature,
       max_tokens: isDeepSeekReasoner ? 700 : 1024,
-      ...(supportsJsonObjectMode(settings) ? { response_format: { type: 'json_object' } } : {}),
+      ...(wantJson && supportsJsonObjectMode(settings) ? { response_format: { type: 'json_object' } } : {}),
       ...(isDeepSeekReasoner ? { think: false } : {}),
       messages: [
         { role: 'system', content: system },
@@ -306,4 +391,7 @@ export const __test = {
   resolveGoogleEmbedModel,
   resolveGoogleChatModel,
   l2Normalize,
+  applyEmbedPrefix,
+  parseOpenAIEmbeddingData,
+  ollamaOrigin,
 }

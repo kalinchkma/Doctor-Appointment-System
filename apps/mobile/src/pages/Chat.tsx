@@ -26,6 +26,8 @@ type Message = {
   sources?: ChatSource[]
   failed?: boolean
   fallback?: boolean
+  topScore?: number
+  confidence?: number
 }
 
 const greeting: Message = {
@@ -83,6 +85,8 @@ export function Chat() {
             text: reply.answer,
             sources: reply.grounded ? reply.sources : [],
             fallback: !reply.grounded,
+            topScore: reply.topScore,
+            confidence: reply.confidence,
           },
         ])
       } catch (reason) {
@@ -119,12 +123,24 @@ export function Chat() {
               className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
             >
               <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
+              {message.author === 'assistant' && (message.topScore ?? 0) > 0 && (
+                <p className="chat-meta">
+                  {(message.confidence ?? 0) > 0
+                    ? `Confidence ${Math.round((message.confidence ?? 0) * 100)}%`
+                    : null}
+                  {(message.confidence ?? 0) > 0 ? ' · ' : null}
+                  {`Similarity ${Math.round((message.topScore ?? 0) * 100)}%`}
+                </p>
+              )}
               {message.sources && message.sources.length > 0 && (
                 <ul className="sources">
                   {message.sources.map((source, index) => (
                     <li key={`${message.id}-${index}`}>
                       {source.title}
                       {source.page ? `, page ${source.page}` : ''}
+                      {typeof source.score === 'number' && source.score > 0
+                        ? ` · ${Math.round(source.score * 100)}%`
+                        : ''}
                     </li>
                   ))}
                 </ul>

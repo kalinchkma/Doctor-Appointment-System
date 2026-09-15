@@ -1,5 +1,6 @@
 import type { GlobalConfig } from 'payload'
 import { admins } from '../../access'
+import { applyProviderExamples, CHAT_MODEL_HELP, EMBED_MODEL_HELP } from '../../lib/llm/examples'
 
 const notOllama =
   (field: 'chatProvider' | 'embedProvider') =>
@@ -11,10 +12,21 @@ export const RagSettings: GlobalConfig = {
   label: 'RAG Settings',
   admin: {
     description:
-      'Choose the chat and embedding providers the healthcare assistant uses. Keys stay in Payload. The Go service only calls this CMS.',
+      'Choose the chat and embedding providers the healthcare assistant uses. Keys stay in Payload. The Go service only calls this CMS. Switching provider fills one example chat model and one example embedding model.',
     group: 'RAG',
   },
   access: { read: admins, update: admins },
+  hooks: {
+    beforeChange: [
+      ({ data, originalDoc }) => {
+        if (!data) return data
+        return applyProviderExamples(
+          data as Record<string, unknown>,
+          originalDoc as Record<string, unknown> | undefined,
+        )
+      },
+    ],
+  },
   fields: [
     {
       type: 'collapsible',
@@ -39,8 +51,7 @@ export const RagSettings: GlobalConfig = {
           required: true,
           defaultValue: 'llama3.2',
           admin: {
-            description:
-              'Examples: llama3.2 / deepseek-r1:1.5b (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).',
+            description: CHAT_MODEL_HELP,
           },
         },
         {
@@ -87,8 +98,7 @@ export const RagSettings: GlobalConfig = {
           required: true,
           defaultValue: 'nomic-embed-text',
           admin: {
-            description:
-              'Examples: nomic-embed-text (768, Ollama), text-embedding-3-small (1536, OpenAI), gemini-embedding-001 (set dimensions to 768). Do not use chat model names for embeddings. Tip: keep Ollama embeddings even when chat is Gemini/OpenAI unless you re-ingest.',
+            description: EMBED_MODEL_HELP,
           },
         },
         {
@@ -124,10 +134,52 @@ export const RagSettings: GlobalConfig = {
       label: 'Retrieval gates',
       admin: { initCollapsed: true },
       fields: [
-        { name: 'minScore', type: 'number', required: true, defaultValue: 0.62, min: 0, max: 1 },
-        { name: 'strongScore', type: 'number', required: true, defaultValue: 0.74, min: 0, max: 1 },
-        { name: 'minChunks', type: 'number', required: true, defaultValue: 2, min: 1 },
-        { name: 'minCoverage', type: 'number', required: true, defaultValue: 0.25, min: 0, max: 1 },
+        {
+          name: 'minScore',
+          type: 'number',
+          required: true,
+          defaultValue: 0.5,
+          min: 0,
+          max: 1,
+          admin: {
+            description:
+              'Atlas cosine is (1+cos)/2, so ~0.50 is unrelated. Drop chunks below this floor.',
+          },
+        },
+        {
+          name: 'strongScore',
+          type: 'number',
+          required: true,
+          defaultValue: 0.58,
+          min: 0,
+          max: 1,
+          admin: {
+            description:
+              'A hit at or above this is a strong vector match. Seeded document questions typically land here after nomic prefixes.',
+          },
+        },
+        {
+          name: 'minChunks',
+          type: 'number',
+          required: true,
+          defaultValue: 1,
+          min: 1,
+          admin: {
+            description: 'Minimum chunks above the score floor before the LLM is asked.',
+          },
+        },
+        {
+          name: 'minCoverage',
+          type: 'number',
+          required: true,
+          defaultValue: 0.25,
+          min: 0,
+          max: 1,
+          admin: {
+            description:
+              'Fraction of question content-words that must appear in retrieved text. High similarity + low coverage is "related topic, wrong question".',
+          },
+        },
         { name: 'maxConcurrency', type: 'number', required: true, defaultValue: 4, min: 1 },
       ],
     },

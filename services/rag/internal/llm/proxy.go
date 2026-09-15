@@ -79,8 +79,15 @@ func FetchSettings(ctx context.Context, payloadURL, secret string) (Settings, er
 }
 
 func (p *Proxy) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	return p.EmbedTask(ctx, texts, "document")
+}
+
+func (p *Proxy) EmbedTask(ctx context.Context, texts []string, task string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
+	}
+	if task == "" {
+		task = "document"
 	}
 
 	const batch = 16
@@ -90,7 +97,7 @@ func (p *Proxy) Embed(ctx context.Context, texts []string) ([][]float32, error) 
 		if end > len(texts) {
 			end = len(texts)
 		}
-		chunk, err := p.embedBatch(ctx, texts[start:end])
+		chunk, err := p.embedBatch(ctx, texts[start:end], task)
 		if err != nil {
 			return nil, err
 		}
@@ -99,15 +106,15 @@ func (p *Proxy) Embed(ctx context.Context, texts []string) ([][]float32, error) 
 	return out, nil
 }
 
-func (p *Proxy) embedBatch(ctx context.Context, texts []string) ([][]float32, error) {
-	body, err := p.post(ctx, "/api/internal/embeddings", map[string]any{"input": texts})
+func (p *Proxy) embedBatch(ctx context.Context, texts []string, task string) ([][]float32, error) {
+	body, err := p.post(ctx, "/api/internal/embeddings", map[string]any{"input": texts, "task": task})
 	if err != nil {
 		return nil, err
 	}
 
 	var parsed struct {
 		Data []struct {
-			Index     int       `json:"index"`
+			Index     *int      `json:"index"`
 			Embedding []float32 `json:"embedding"`
 		} `json:"data"`
 	}
@@ -118,12 +125,24 @@ func (p *Proxy) embedBatch(ctx context.Context, texts []string) ([][]float32, er
 		return nil, fmt.Errorf("embeddings: expected %d vectors, got %d", len(texts), len(parsed.Data))
 	}
 
-	vectors := make([][]float32, len(texts))
+	sequential := false
 	for _, item := range parsed.Data {
-		if item.Index < 0 || item.Index >= len(texts) {
-			return nil, fmt.Errorf("embeddings: out-of-range index %d", item.Index)
+		if item.Index == nil {
+			sequential = true
+			break
 		}
-		vectors[item.Index] = item.Embedding
+	}
+
+	vectors := make([][]float32, len(texts))
+	for i, item := range parsed.Data {
+		idx := i
+		if !sequential && item.Index != nil {
+			idx = *item.Index
+		}
+		if idx < 0 || idx >= len(texts) {
+			return nil, fmt.Errorf("embeddings: out-of-range index %d", idx)
+		}
+		vectors[idx] = item.Embedding
 	}
 	for i, vec := range vectors {
 		if len(vec) == 0 {
@@ -134,9 +153,18 @@ func (p *Proxy) embedBatch(ctx context.Context, texts []string) ([][]float32, er
 }
 
 func (p *Proxy) Generate(ctx context.Context, system, user string) (string, error) {
+	return p.complete(ctx, system, user, "json")
+}
+
+func (p *Proxy) GenerateText(ctx context.Context, system, user string) (string, error) {
+	return p.complete(ctx, system, user, "text")
+}
+
+func (p *Proxy) complete(ctx context.Context, system, user, format string) (string, error) {
 	body, err := p.post(ctx, "/api/internal/chat/completions", map[string]string{
 		"system": system,
 		"user":   user,
+		"format": format,
 	})
 	if err != nil {
 		return "", err

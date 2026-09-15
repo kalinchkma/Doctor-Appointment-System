@@ -3,9 +3,9 @@
 # Prefer zero fabrications (false "sufficient") over extra cautious fallbacks.
 
 thresholds:
-  minScore: 0.62
-  strongScore: 0.74
-  minChunks: 2
+  minScore: 0.50
+  strongScore: 0.58
+  minChunks: 1
   minCoverage: 0.25
 
 answerable:

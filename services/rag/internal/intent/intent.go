@@ -9,10 +9,10 @@ import (
 type Kind string
 
 const (
-	KindGreeting  Kind = "greeting"
-	KindIdentity  Kind = "identity"
-	KindOffTopic  Kind = "off_topic"
-	KindMedical   Kind = "medical"
+	KindGreeting Kind = "greeting"
+	KindIdentity Kind = "identity"
+	KindOffTopic Kind = "off_topic"
+	KindMedical  Kind = "medical"
 )
 
 // Healthcare / maternal-child topic signals used to keep medical questions on the RAG path.
@@ -38,6 +38,18 @@ const (
 	IdentityAnswer = "I'm a healthcare information assistant. I answer questions using the clinic's pregnancy, prenatal-care, and child-nutrition documents. I don't diagnose or prescribe — for personal medical advice, please speak with a clinician."
 	OffTopicAnswer = "I can chat briefly, but I'm only intended to answer healthcare questions covered by our pregnancy, prenatal-care, and child-nutrition documents. Please ask something in that medical scope, or contact a clinician for personal advice."
 )
+
+// FallbackReply is used only when the chat model is unavailable for a conversational turn.
+func FallbackReply(kind Kind) string {
+	switch kind {
+	case KindIdentity:
+		return IdentityAnswer
+	case KindOffTopic:
+		return OffTopicAnswer
+	default:
+		return GreetingAnswer
+	}
+}
 
 // Classify routes short chitchat away from RAG and keeps medical questions on the retrieval path.
 func Classify(question string) Kind {

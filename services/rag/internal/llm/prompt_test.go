@@ -63,3 +63,16 @@ reasoning about the passages
 		t.Fatalf("expected JSON after think block, got %+v ok=%v", got, ok)
 	}
 }
+
+func TestPlainReplyUsesJSONAnswerWhenModelIgnoresInstructions(t *testing.T) {
+	got := PlainReply(`{"sufficient":true,"answer":"Hello — ask me about prenatal care.","source_chunk_ids":[]}`)
+	if !strings.Contains(got, "prenatal") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestPlainReplyEmptyJSONFallsThrough(t *testing.T) {
+	if got := PlainReply(`{"sufficient":false,"answer":""}`); got != "" {
+		t.Fatalf("empty JSON answer should yield empty display text, got %q", got)
+	}
+}

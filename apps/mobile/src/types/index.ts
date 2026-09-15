@@ -69,13 +69,16 @@ export type BookingContact = {
 
 export type Session = { token: string; user: User }
 
-export type ChatSource = { title: string; page?: number }
+export type ChatSource = { title: string; page?: number; score?: number }
 
 export type ChatReply = {
   answer: string
   sources: ChatSource[]
   /** False when the knowledge base did not contain enough evidence to answer. */
   grounded: boolean
+  topScore?: number
+  confidence?: number
+  reason?: string
 }
 
 export type ChatSuggestedQuestion = {

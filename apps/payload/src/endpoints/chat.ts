@@ -69,6 +69,7 @@ export const chatEndpoint: Endpoint = {
           sufficient: result.sufficient,
           reason: result.reason,
           topScore: result.topScore,
+          confidence: result.confidence,
           sources: result.sources?.length ?? 0,
         },
         'chat response from RAG',
@@ -82,6 +83,9 @@ export const chatEndpoint: Endpoint = {
         answer: result.answer,
         sources: result.sources ?? [],
         grounded: Boolean(result.sufficient),
+        topScore: typeof result.topScore === 'number' ? result.topScore : 0,
+        confidence: typeof result.confidence === 'number' ? result.confidence : 0,
+        reason: result.reason ?? '',
       })
     } catch (error) {
       if (isRagProviderError(error)) {

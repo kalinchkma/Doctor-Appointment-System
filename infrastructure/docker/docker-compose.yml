@@ -19,9 +19,14 @@ services:
       MONGODB_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     ports:
       - '27017:27017'
+    # mongot (Atlas Search / $vectorSearch) needs extra shared memory on Docker Desktop.
+    shm_size: 1gb
     volumes:
+      # These three must be created together. An old /data/db with a new empty
+      # /data/configdb is the usual Mac failure: mongod exits looking for keyfile.
       - mongodb_data:/data/db
       - mongodb_configdb:/data/configdb
+      - mongodb_mongot:/data/mongot
     healthcheck:
       test:
         [
@@ -29,9 +34,10 @@ services:
           "mongosh --quiet --username $$MONGODB_INITDB_ROOT_USERNAME --password $$MONGODB_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'",
         ]
       interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 40s
+      timeout: 8s
+      retries: 30
+      # Apple Silicon + Atlas Local often needs a minute for mongod + mongot.
+      start_period: 90s
 
   cms:
     build:
@@ -139,5 +145,6 @@ services:
 volumes:
   mongodb_data:
   mongodb_configdb:
+  mongodb_mongot:
   cms_media:
   cms_knowledge_files:

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,8 +28,9 @@ type SyncRequest struct {
 }
 
 type Source struct {
-	Title string `json:"title"`
-	Page  int    `json:"page,omitempty"`
+	Title string  `json:"title"`
+	Page  int     `json:"page,omitempty"`
+	Score float64 `json:"score,omitempty"`
 }
 
 type ChatResult struct {
@@ -37,6 +39,7 @@ type ChatResult struct {
 	Sources    []Source `json:"sources"`
 	Reason     string   `json:"reason,omitempty"`
 	TopScore   float64  `json:"topScore"`
+	Confidence float64  `json:"confidence"`
 }
 
 type StatusCallback func(ctx context.Context, documentID, status, indexError string) error
@@ -101,7 +104,7 @@ func (p *Pipeline) IngestBytes(ctx context.Context, req SyncRequest, data []byte
 		texts[i] = part.Text
 	}
 
-	vectors, err := p.embedder.Embed(ctx, texts)
+	vectors, err := p.embedTexts(ctx, texts, "document")
 	if err != nil {
 		return fmt.Errorf("embed: %w", err)
 	}
@@ -144,45 +147,43 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 	}
 
 	switch kind := intent.Classify(question); kind {
-	case intent.KindGreeting:
+	case intent.KindGreeting, intent.KindIdentity, intent.KindOffTopic:
 		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
-		return ChatResult{
-			Sufficient: true,
-			Answer:     intent.GreetingAnswer,
-			Reason:     string(kind),
-		}, nil
-	case intent.KindIdentity:
-		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
-		return ChatResult{
-			Sufficient: true,
-			Answer:     intent.IdentityAnswer,
-			Reason:     string(kind),
-		}, nil
-	case intent.KindOffTopic:
-		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
-		return ChatResult{
-			Sufficient: false,
-			Answer:     intent.OffTopicAnswer,
-			Reason:     string(kind),
-		}, nil
+		return p.converse(ctx, kind, question)
 	}
 
-	vectors, err := p.embedder.Embed(ctx, []string{question})
+	vectors, err := p.embedTexts(ctx, []string{question}, "query")
 	if err != nil {
 		return ChatResult{}, fmt.Errorf("embed question: %w", err)
 	}
 
-	hits, err := p.store.Search(ctx, vectors[0], 6)
+	hits, err := p.store.Search(ctx, vectors[0], 8)
 	if err != nil {
 		return ChatResult{}, err
 	}
 
-	decision := relevance.Evaluate(hits, question, relevance.Gates{
-		MinScore:    p.cfg.MinScore,
-		StrongScore: p.cfg.StrongScore,
-		MinChunks:   p.cfg.MinChunks,
-		MinCoverage: p.cfg.MinCoverage,
-	})
+	gates := p.gates(ctx)
+	decision := relevance.Evaluate(hits, question, gates)
+
+	if !decision.Pass && (decision.Reason == relevance.ReasonNoResults || decision.Reason == relevance.ReasonBelowThreshold) {
+		if searcher, ok := p.store.(lexicalSearcher); ok {
+			lex, lexErr := searcher.SearchLexical(ctx, question, 8)
+			if lexErr != nil {
+				slog.Warn("lexical search failed", "error", lexErr)
+			} else if len(lex) > 0 {
+				hits = mergeHits(hits, lex)
+				decision = relevance.Evaluate(hits, question, gates)
+				slog.Info("chat lexical fallback",
+					"lexHits", len(lex),
+					"merged", len(hits),
+					"pass", decision.Pass,
+					"reason", string(decision.Reason),
+					"coverage", decision.Coverage,
+					"topScore", decision.TopScore,
+				)
+			}
+		}
+	}
 
 	slog.Info("chat retrieval",
 		"question", truncate(question, 120),
@@ -203,6 +204,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 			Sources:    nil,
 			Reason:     string(decision.Reason),
 			TopScore:   decision.TopScore,
+			Confidence: 0,
 		}, nil
 	}
 
@@ -224,7 +226,13 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 			Answer:     FallbackAnswer,
 			Reason:     string(relevance.ReasonLLMDeclined),
 			TopScore:   decision.TopScore,
+			Confidence: 0,
 		}, nil
+	}
+
+	confidence := parsed.Confidence
+	if confidence <= 0 || confidence > 1 {
+		confidence = decision.TopScore
 	}
 
 	return ChatResult{
@@ -232,7 +240,114 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		Answer:     strings.TrimSpace(parsed.Answer),
 		Sources:    sourcesFor(parsed.SourceChunkIDs, decision.Kept),
 		TopScore:   decision.TopScore,
+		Confidence: confidence,
 	}, nil
+}
+
+type lexicalSearcher interface {
+	SearchLexical(ctx context.Context, question string, limit int) ([]vectorstore.ScoredChunk, error)
+}
+
+type taskEmbedder interface {
+	EmbedTask(ctx context.Context, texts []string, task string) ([][]float32, error)
+}
+
+type textGenerator interface {
+	GenerateText(ctx context.Context, system, user string) (string, error)
+}
+
+func (p *Pipeline) embedTexts(ctx context.Context, texts []string, task string) ([][]float32, error) {
+	if te, ok := p.embedder.(taskEmbedder); ok {
+		return te.EmbedTask(ctx, texts, task)
+	}
+	return p.embedder.Embed(ctx, texts)
+}
+
+func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question string) (ChatResult, error) {
+	raw, err := p.generateText(ctx, llm.ConversationalSystem, llm.ConversationalUser(string(kind), question))
+	answer := ""
+	if err != nil {
+		slog.Warn("conversational generate failed", "kind", kind, "error", err)
+	} else {
+		answer = llm.PlainReply(raw)
+	}
+	if answer == "" {
+		answer = intent.FallbackReply(kind)
+	}
+
+	sufficient := kind != intent.KindOffTopic
+	return ChatResult{
+		Sufficient: sufficient,
+		Answer:     answer,
+		Reason:     string(kind),
+		Confidence: 1,
+	}, nil
+}
+
+func (p *Pipeline) generateText(ctx context.Context, system, user string) (string, error) {
+	if tg, ok := p.generate.(textGenerator); ok {
+		return tg.GenerateText(ctx, system, user)
+	}
+	return p.generate.Generate(ctx, system, user)
+}
+
+func (p *Pipeline) gates(ctx context.Context) relevance.Gates {
+	g := relevance.Gates{
+		MinScore:    p.cfg.MinScore,
+		StrongScore: p.cfg.StrongScore,
+		MinChunks:   p.cfg.MinChunks,
+		MinCoverage: p.cfg.MinCoverage,
+	}
+	if p.cfg.PayloadURL == "" {
+		return g
+	}
+	settings, err := llm.FetchSettings(ctx, p.cfg.PayloadURL, p.secret)
+	if err != nil {
+		return g
+	}
+	if settings.MinChunks >= 1 {
+		g.MinChunks = settings.MinChunks
+	}
+	if settings.MinScore > 0 {
+		g.MinScore = settings.MinScore
+	}
+	if settings.StrongScore > 0 {
+		g.StrongScore = settings.StrongScore
+	}
+	if settings.MinCoverage > 0 {
+		g.MinCoverage = settings.MinCoverage
+	}
+	return g
+}
+
+func mergeHits(primary, extra []vectorstore.ScoredChunk) []vectorstore.ScoredChunk {
+	byID := make(map[string]vectorstore.ScoredChunk, len(primary)+len(extra))
+	add := func(chunk vectorstore.ScoredChunk) {
+		id := chunk.ID
+		if id == "" {
+			id = fmt.Sprintf("%s:%d", chunk.DocumentID, chunk.ChunkIndex)
+			chunk.ID = id
+		}
+		if existing, ok := byID[id]; ok {
+			if chunk.Score > existing.Score {
+				byID[id] = chunk
+			}
+			return
+		}
+		byID[id] = chunk
+	}
+	for _, chunk := range primary {
+		add(chunk)
+	}
+	for _, chunk := range extra {
+		add(chunk)
+	}
+	out := make([]vectorstore.ScoredChunk, 0, len(byID))
+	for _, chunk := range byID {
+		out = append(out, chunk)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Score > out[j].Score })
+	return out
 }
 
 func truncate(s string, n int) string {
@@ -307,7 +422,7 @@ func sourcesFor(ids []string, chunks []vectorstore.ScoredChunk) []Source {
 			return
 		}
 		seen[key] = struct{}{}
-		out = append(out, Source{Title: chunk.Title, Page: chunk.Page})
+		out = append(out, Source{Title: chunk.Title, Page: chunk.Page, Score: chunk.Score})
 	}
 
 	for _, id := range ids {

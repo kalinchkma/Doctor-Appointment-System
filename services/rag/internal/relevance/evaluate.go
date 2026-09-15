@@ -34,6 +34,10 @@ type Decision struct {
 
 // Evaluate applies gates 1 and 2. Gate 3 (LLM self-assessment) lives in the pipeline
 // because it needs a generator. Atlas cosine scores are (1+cos)/2, so ~0.5 is orthogonal.
+//
+// A question passes when we have enough chunks above the floor AND either a strong
+// vector hit or enough lexical overlap. High vector scores with poor lexical coverage
+// stay low_coverage (assignment Test 3 — related corpus, unanswered question).
 func Evaluate(chunks []vectorstore.ScoredChunk, question string, gates Gates) Decision {
 	decision := Decision{Reason: ReasonNoResults}
 	if len(chunks) > 0 {
@@ -51,6 +55,7 @@ func Evaluate(chunks []vectorstore.ScoredChunk, question string, gates Gates) De
 	}
 	decision.Kept = above
 	decision.TopScore = above[0].Score
+	decision.Coverage = LexicalCoverage(question, above)
 
 	strong := 0
 	for _, chunk := range above {
@@ -58,14 +63,17 @@ func Evaluate(chunks []vectorstore.ScoredChunk, question string, gates Gates) De
 			strong++
 		}
 	}
-	if strong < 1 || len(above) < gates.MinChunks {
+
+	if decision.Coverage < gates.MinCoverage && strong >= 1 {
+		decision.Reason = ReasonLowCoverage
+		return decision
+	}
+	if len(above) < gates.MinChunks {
 		decision.Reason = ReasonBelowThreshold
 		return decision
 	}
-
-	decision.Coverage = LexicalCoverage(question, above)
-	if decision.Coverage < gates.MinCoverage {
-		decision.Reason = ReasonLowCoverage
+	if strong < 1 && decision.Coverage < gates.MinCoverage {
+		decision.Reason = ReasonBelowThreshold
 		return decision
 	}
 
@@ -75,7 +83,7 @@ func Evaluate(chunks []vectorstore.ScoredChunk, question string, gates Gates) De
 }
 
 func LexicalCoverage(question string, chunks []vectorstore.ScoredChunk) float64 {
-	terms := contentWords(question)
+	terms := ContentWords(question)
 	if len(terms) == 0 {
 		return 1
 	}
@@ -108,7 +116,7 @@ var stopwords = map[string]struct{}{
 	"they": {}, "me": {}, "my": {}, "your": {}, "our": {}, "please": {},
 }
 
-func contentWords(text string) []string {
+func ContentWords(text string) []string {
 	var (
 		b   strings.Builder
 		out []string

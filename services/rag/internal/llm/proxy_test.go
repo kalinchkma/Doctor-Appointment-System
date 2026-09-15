@@ -83,6 +83,40 @@ func TestProxyHonoursCancel(t *testing.T) {
 	}
 }
 
+func TestProxyEmbedUsesOrderWhenIndexMissing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/internal/embeddings" {
+			t.Fatalf("path %s", r.URL.Path)
+		}
+		var body struct {
+			Task  string   `json:"task"`
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Task != "query" {
+			t.Fatalf("task %s", body.Task)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{"embedding": []float32{1, 0, 0, 0, 0, 0, 0, 0}},
+				{"embedding": []float32{0, 1, 0, 0, 0, 0, 0, 0}},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewProxy(server.URL, "s3cret", 8)
+	got, err := client.EmbedTask(context.Background(), []string{"a", "b"}, "query")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0][0] != 1 || got[1][1] != 1 {
+		t.Fatalf("%v", got)
+	}
+}
+
 func TestFetchSettings(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/internal/rag-settings" {

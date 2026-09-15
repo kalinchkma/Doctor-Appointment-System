@@ -30,9 +30,9 @@ const defaults: RagRuntimeSettings = {
   embedBaseUrl: '',
   embedApiKey: '',
   embedDimensions: 768,
-  minScore: 0.62,
-  strongScore: 0.74,
-  minChunks: 2,
+  minScore: 0.5,
+  strongScore: 0.58,
+  minChunks: 1,
   minCoverage: 0.25,
   maxConcurrency: 4,
 }
@@ -59,7 +59,7 @@ export async function loadRagSettings(payload: Payload): Promise<RagRuntimeSetti
 
   if (!doc) return defaults
 
-  return {
+  const settings: RagRuntimeSettings = {
     chatProvider: (doc.chatProvider as ChatProvider) || defaults.chatProvider,
     chatModel: String(doc.chatModel || defaults.chatModel),
     chatBaseUrl: String(doc.chatBaseUrl || ''),
@@ -75,4 +75,13 @@ export async function loadRagSettings(payload: Payload): Promise<RagRuntimeSetti
     minCoverage: Number(doc.minCoverage) || defaults.minCoverage,
     maxConcurrency: Number(doc.maxConcurrency) || defaults.maxConcurrency,
   }
+
+  // Previous factory gates (0.62 / 0.74 / 2) rejected almost all local nomic hits.
+  if (settings.minScore === 0.62 && settings.strongScore === 0.74 && settings.minChunks === 2) {
+    settings.minScore = defaults.minScore
+    settings.strongScore = defaults.strongScore
+    settings.minChunks = defaults.minChunks
+  }
+
+  return settings
 }

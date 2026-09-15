@@ -69,13 +69,14 @@ export const internalRagEndpoints: Endpoint[] = [
       if (!requireInternalSecret(req)) {
         return json({ error: 'unauthorized' }, 401)
       }
-      const body = ((await req.json?.()) ?? {}) as { input?: string[] }
+      const body = ((await req.json?.()) ?? {}) as { input?: string[]; task?: 'document' | 'query' }
       if (!Array.isArray(body.input)) {
         return json({ error: 'input must be an array of strings' }, 400)
       }
+      const task = body.task === 'query' ? 'query' : 'document'
       try {
         const settings = await loadRagSettings(req.payload)
-        const vectors = await proxyEmbeddings(settings, body.input)
+        const vectors = await proxyEmbeddings(settings, body.input, task)
         return json({
           dimensions: settings.embedDimensions,
           data: vectors.map((embedding, index) => ({ index, embedding })),
@@ -93,21 +94,27 @@ export const internalRagEndpoints: Endpoint[] = [
       if (!requireInternalSecret(req)) {
         return json({ error: 'unauthorized' }, 401)
       }
-      const body = ((await req.json?.()) ?? {}) as { system?: string; user?: string }
+      const body = ((await req.json?.()) ?? {}) as {
+        system?: string
+        user?: string
+        format?: 'json' | 'text'
+      }
       if (!body.user) {
         return json({ error: 'user prompt is required' }, 400)
       }
+      const format = body.format === 'text' ? 'text' : 'json'
       try {
         const settings = await loadRagSettings(req.payload)
         req.payload.logger.info(
           {
             provider: settings.chatProvider,
             model: settings.chatModel,
+            format,
             userLen: body.user.length,
           },
           'chat proxy request',
         )
-        const content = await proxyCompletion(settings, body.system ?? '', body.user)
+        const content = await proxyCompletion(settings, body.system ?? '', body.user, format)
         req.payload.logger.info(
           { provider: settings.chatProvider, model: settings.chatModel, contentLen: content.length },
           'chat proxy response',

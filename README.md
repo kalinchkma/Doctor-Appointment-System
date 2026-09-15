@@ -75,6 +75,18 @@ pnpm docker:up
 This starts `mongodb`, `cms`, and `rag`. First boot takes a few minutes while
 Atlas Local initialises its replica set and the CMS image builds.
 
+If MongoDB exits immediately on Docker Desktop for Mac (`container docker-mongodb-1
+exited (2)`, logs show `Unable to acquire security key` / missing
+`/data/configdb/keyfile`), the data volume and the replica-set keyfile volume
+are out of sync — typical after copying the repo from Linux or recreating only
+one volume. Recreate them together, then start again:
+
+```bash
+docker compose --env-file .env -f infrastructure/docker/docker-compose.yml down
+docker volume rm docker_mongodb_data docker_mongodb_configdb docker_mongodb_mongot
+pnpm docker:up
+```
+
 | Service          | Address                                                  |
 | ---------------- | -------------------------------------------------------- |
 | Payload admin    | http://localhost:3000/admin                              |
@@ -329,7 +341,11 @@ docker compose -f infrastructure/docker/docker-compose.yml exec mongodb \
 
 Ingestion and query share the embedder selected in **RAG Settings**. The Go
 service posts text to Payload; Payload calls the vendor. Defaults are Ollama
-`nomic-embed-text` at 768 dimensions.
+`nomic-embed-text` at 768 dimensions. Query embeddings are prefixed
+`search_query:` and document embeddings `search_document:` so Atlas cosine
+scores separate real hits from noise. All vectors are L2-normalised. If vector
+scores are weak, the Go service also runs a lexical `$regex` fallback over chunk
+text so seeded document questions still retrieve.
 
 PDFs are extracted with a pure-Go library (no CGO, so the distroless image
 stays static), cleaned (de-hyphenated line wraps, dropped near-empty pages),
@@ -340,7 +356,8 @@ chunks; ~1,000 characters is roughly 250 tokens, so six retrieved chunks stay
 inside a small local model's context window.
 
 Changing the embedding model means dropping `knowledge_vector_index` and
-re-ingesting every document.
+re-ingesting every document. Re-ingest is also required after this nomic
+prefix change so stored vectors and queries share the same space.
 
 ## Vector store
 
@@ -354,25 +371,45 @@ Atlas returns scores as `(1 + cos) / 2`, so ~0.5 is orthogonal, not 0.
 
 ## LLM configuration
 
-Configured in Payload Admin → **RAG Settings**. Supported chat backends: Ollama,
-OpenAI, Anthropic Claude, and Google Gemini. Keys never enter the mobile bundle
-or the Go process. Provider errors are logged in Payload; the user sees a
-generic unavailable message.
+Configured in Payload Admin → **RAG Settings**. Switching a provider fills one
+example chat model and one example embedding model (you can still type any id).
+Keys never enter the mobile bundle or the Go process. Provider errors are logged
+in Payload; the user sees a generic unavailable message.
+
+| Provider | Example chat model | Example embedding model |
+| --- | --- | --- |
+| Ollama (local) | `llama3.2` | `nomic-embed-text` (768) |
+| OpenAI | `gpt-4o-mini` | `text-embedding-3-small` (1536) |
+| Anthropic Claude | `claude-sonnet-4-5` | *(none — use Ollama, OpenAI, or Google for embeddings)* |
+| Google Gemini | `gemini-2.0-flash` | `gemini-embedding-001` (768) |
+
+Ollama talks to `http://host.docker.internal:11434` from Docker (or
+`http://127.0.0.1:11434` on the host). Pull both models once:
+
+```bash
+ollama pull llama3.2
+ollama pull nomic-embed-text
+```
+
+Greetings and setup questions (`hi`, `who are you`) go through the chat model
+as plain-text conversational turns. Medical questions still go through RAG.
 
 ## How the system decides it does not have enough information
 
 Vector search returning something is not treated as "we can answer." Three
 gates run on every question (assignment §13):
 
-1. **Score floor** (`RAG_MIN_SCORE`, default 0.62). Drops off-domain questions.
-2. **Evidence strength + lexical coverage.** Need at least one chunk above
-   `RAG_STRONG_SCORE` (0.74), at least `RAG_MIN_CHUNKS` (2) above the floor,
-   and at least `RAG_MIN_COVERAGE` (0.25) of the question's content words in
-   the retrieved text. High similarity with low coverage is the signature of
+1. **Score floor** (`RAG_MIN_SCORE`, default 0.50). Atlas cosine is
+   `(1+cos)/2`, so ~0.50 is unrelated. Drops off-domain questions.
+2. **Evidence strength or lexical coverage.** Need at least `RAG_MIN_CHUNKS`
+   (1) chunks above the floor, and either one hit above `RAG_STRONG_SCORE`
+   (0.58) or at least `RAG_MIN_COVERAGE` (0.25) of the question's content words
+   in the retrieved text. High similarity with low coverage is the signature of
    "related topic, wrong question" — the assignment's Test 3.
 3. **LLM self-assessment.** Only if gates 1 and 2 pass. The model must return
-   JSON `{ sufficient, answer, source_chunk_ids }`. Malformed JSON is treated
-   as insufficient.
+   JSON `{ sufficient, answer, source_chunk_ids, confidence }`. Malformed JSON
+   is treated as insufficient. `topScore` and `confidence` are returned on
+   `POST /api/chat` and shown in the mobile chat.
 
 Starting thresholds are recorded in
 [`services/rag/testdata/questions.yaml`](services/rag/testdata/questions.yaml)
