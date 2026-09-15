@@ -7,11 +7,21 @@ import {
   json,
   toErrorResponse,
 } from '../lib/errors'
-import { begin, commit, rollback } from '../lib/transaction'
+import { begin, commit, rollback, type Transaction } from '../lib/transaction'
 import { assertPatientCanBook } from '../lib/bookingLimits'
+import { canCancelAppointment } from '../lib/cancelPolicy'
 
 const bookSchema = z.object({
   slotId: z.string().min(1, 'A slot must be selected.'),
+  patientNote: z
+    .string()
+    .trim()
+    .max(500, 'Special requests must be 500 characters or fewer.')
+    .optional(),
+})
+
+const noteSchema = z.object({
+  patientNote: z.string().trim().max(500, 'Comments must be 500 characters or fewer.'),
 })
 
 function requireUser(req: PayloadRequest) {
@@ -30,15 +40,48 @@ async function parseBookBody(req: PayloadRequest) {
   return parsed.data
 }
 
+async function parseNoteBody(req: PayloadRequest) {
+  const parsed = noteSchema.safeParse(await req.json?.())
+
+  if (!parsed.success) {
+    throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
+  }
+  return parsed.data
+}
+
+function relationId(value: unknown): string {
+  if (!value) return ''
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (typeof value === 'object' && value !== null && 'id' in value) {
+    return String((value as { id: string }).id)
+  }
+  return String(value)
+}
+
 // The mongoose model rather than the raw driver collection: it casts the incoming string
 // id to an ObjectId using the schema, which the native driver would not do.
 const slotModel = (req: PayloadRequest) => req.payload.db.collections['appointment-slots']!
 
-// Payload's mongoose models are untyped, so the fields this endpoint reads are declared
-// here rather than asserted inline at each use.
 type SlotDocument = { doctor: unknown; startsAt: string; status: string }
 
 const asSlot = (document: unknown) => document as SlotDocument | null
+
+/** Flip a slot back to available so another patient can book it. */
+async function releaseSlot(
+  req: PayloadRequest,
+  slotId: string,
+  transaction: Transaction,
+): Promise<SlotDocument | null> {
+  const options = transaction.session
+    ? { session: transaction.session, new: true as const }
+    : { new: true as const }
+
+  return asSlot(
+    await slotModel(req)
+      .findOneAndUpdate({ _id: slotId }, { $set: { status: 'available' } }, options)
+      .lean(),
+  )
+}
 
 /**
  * POST /api/appointments/book
@@ -71,7 +114,7 @@ const book: Endpoint = {
 
     try {
       const user = requireUser(req)
-      const { slotId } = await parseBookBody(req)
+      const { slotId, patientNote } = await parseBookBody(req)
 
       const transaction = await begin(req)
       const slots = slotModel(req)
@@ -117,6 +160,7 @@ const book: Endpoint = {
             slot: slotId,
             status: 'booked',
             bookedAt: new Date().toISOString(),
+            ...(patientNote ? { patientNote } : {}),
           },
         })
 
@@ -129,6 +173,8 @@ const book: Endpoint = {
             slot: appointment.slot,
             status: appointment.status,
             bookedAt: appointment.bookedAt,
+            patientNote: appointment.patientNote ?? null,
+            doctorComment: appointment.doctorComment ?? null,
           },
           201,
         )
@@ -167,9 +213,9 @@ const book: Endpoint = {
 /**
  * POST /api/appointments/:id/cancel
  *
- * Releases the slot alongside cancelling the appointment. This is why uniq_active_slot is
- * a *partial* index: once the appointment is `cancelled` it no longer occupies the slot,
- * so the slot becomes bookable again.
+ * Cancels the appointment and always flips the linked slot back to `available`.
+ * uniq_active_slot is a partial unique index on status=booked, so a cancelled row no
+ * longer blocks a later booking of the same slot.
  */
 const cancel: Endpoint = {
   path: '/:id/cancel',
@@ -185,10 +231,9 @@ const cancel: Endpoint = {
         throw errors.invalidInput('An appointment id is required.')
       }
 
-      // Access control is applied rather than overridden, so a patient can only ever
-      // reach their own appointment.
+      // Depth 1 so we can read the slot start time for the 1-hour cancel window.
       const appointment = await payload
-        .findByID({ collection: 'appointments', id: appointmentId, req, depth: 0 })
+        .findByID({ collection: 'appointments', id: appointmentId, req, depth: 1 })
         .catch(() => null)
 
       if (!appointment || String(appointment.patient) !== String(user.id)) {
@@ -196,6 +241,21 @@ const cancel: Endpoint = {
       }
       if (appointment.status === 'cancelled') {
         throw errors.alreadyCancelled()
+      }
+
+      const slotId = relationId(appointment.slot)
+      const startsAt =
+        typeof appointment.slot === 'object' &&
+        appointment.slot !== null &&
+        'startsAt' in appointment.slot
+          ? String((appointment.slot as { startsAt: string }).startsAt)
+          : null
+
+      if (!slotId || !startsAt) {
+        throw errors.slotNotFound()
+      }
+      if (!canCancelAppointment(startsAt)) {
+        throw errors.cancelTooLate()
       }
 
       const transaction = await begin(req)
@@ -209,17 +269,46 @@ const cancel: Endpoint = {
           data: { status: 'cancelled', cancelledAt: new Date().toISOString() },
         })
 
-        await slotModel(req).updateOne(
-          { _id: String(appointment.slot) },
-          { $set: { status: 'available' } },
-          { session: transaction.session },
-        )
+        const released = await releaseSlot(req, slotId, transaction)
+        if (!released) {
+          payload.logger.error(
+            { appointmentId, slotId },
+            'cancel could not find the slot document to release',
+          )
+          throw errors.slotNotFound()
+        }
 
         await commit(req, transaction)
 
-        return json({ id: appointmentId, status: 'cancelled' })
+        return json({ id: appointmentId, status: 'cancelled', slotStatus: 'available' })
       } catch (error) {
         await rollback(req, transaction)
+
+        // Without a transaction the appointment cancel already committed. Free the slot
+        // anyway so the time does not stay locked on the calendar.
+        if (!transaction.active) {
+          const current = await payload
+            .findByID({
+              collection: 'appointments',
+              id: appointmentId,
+              overrideAccess: true,
+              depth: 0,
+            })
+            .catch(() => null)
+
+          if (current?.status === 'cancelled') {
+            await releaseSlot(req, slotId, { id: null, session: undefined, active: false }).catch(
+              (releaseError: unknown) => {
+                payload.logger.error(
+                  { err: releaseError, appointmentId, slotId },
+                  'failed to release slot after cancel',
+                )
+              },
+            )
+            return json({ id: appointmentId, status: 'cancelled', slotStatus: 'available' })
+          }
+        }
+
         throw error
       }
     } catch (error) {
@@ -228,4 +317,54 @@ const cancel: Endpoint = {
   },
 }
 
-export const appointmentEndpoints: Endpoint[] = [book, cancel]
+/**
+ * POST /api/appointments/:id/note
+ *
+ * Lets the patient add or update their special request / comment after booking.
+ * Generic REST update stays admin-only; this endpoint is the patient write path.
+ */
+const updateNote: Endpoint = {
+  path: '/:id/note',
+  method: 'post',
+  handler: async (req) => {
+    const payload = req.payload
+
+    try {
+      const user = requireUser(req)
+      const appointmentId = String(req.routeParams?.id ?? '')
+      const { patientNote } = await parseNoteBody(req)
+
+      if (!appointmentId) {
+        throw errors.invalidInput('An appointment id is required.')
+      }
+
+      const appointment = await payload
+        .findByID({ collection: 'appointments', id: appointmentId, req, depth: 0 })
+        .catch(() => null)
+
+      if (!appointment || String(appointment.patient) !== String(user.id)) {
+        throw errors.appointmentNotFound()
+      }
+      if (appointment.status === 'cancelled') {
+        throw errors.invalidInput('Comments cannot be updated on a cancelled appointment.')
+      }
+
+      const updated = await payload.update({
+        collection: 'appointments',
+        id: appointmentId,
+        req,
+        overrideAccess: true,
+        data: { patientNote },
+      })
+
+      return json({
+        id: updated.id,
+        patientNote: updated.patientNote ?? '',
+      })
+    } catch (error) {
+      return toErrorResponse(error, payload, 'appointments.note')
+    }
+  },
+}
+
+export const appointmentEndpoints: Endpoint[] = [book, cancel, updateNote]

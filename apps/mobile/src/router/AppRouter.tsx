@@ -9,6 +9,7 @@ import { Doctors } from '../pages/Doctors'
 import { DoctorDetails } from '../pages/DoctorDetails'
 import { BookAppointment } from '../pages/BookAppointment'
 import { BookingConfirmation } from '../pages/BookingConfirmation'
+import { AppointmentDetails } from '../pages/AppointmentDetails'
 import { MyAppointments } from '../pages/MyAppointments'
 import { Chat } from '../pages/Chat'
 
@@ -29,6 +30,10 @@ export function AppRouter() {
           <Route
             path="/appointments/:appointmentId/confirmed"
             element={protectedRoute(<BookingConfirmation />)}
+          />
+          <Route
+            path="/appointments/:appointmentId"
+            element={protectedRoute(<AppointmentDetails />)}
           />
           <Route path="/chat" element={protectedRoute(<Chat />)} />
           <Route path="/" element={<Navigate to="/home" replace />} />

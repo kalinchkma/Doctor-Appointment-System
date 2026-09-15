@@ -16,8 +16,21 @@ export async function listMyAppointments(): Promise<Appointment[]> {
 /** Access control rejects this with a 403 unless the appointment belongs to the caller. */
 export const getAppointment = (id: string) => get<Appointment>(`/api/appointments/${id}?depth=2`)
 
-export const bookAppointment = (slotId: string) =>
-  post<{ id: string; status: string; bookedAt: string }>('/api/appointments/book', { slotId })
+export const bookAppointment = (slotId: string, patientNote?: string) =>
+  post<{
+    id: string
+    status: string
+    bookedAt: string
+    patientNote?: string | null
+  }>('/api/appointments/book', {
+    slotId,
+    ...(patientNote?.trim() ? { patientNote: patientNote.trim() } : {}),
+  })
 
 export const cancelAppointment = (appointmentId: string) =>
   post<{ id: string; status: string }>(`/api/appointments/${appointmentId}/cancel`)
+
+export const updateAppointmentNote = (appointmentId: string, patientNote: string) =>
+  post<{ id: string; patientNote: string }>(`/api/appointments/${appointmentId}/note`, {
+    patientNote,
+  })

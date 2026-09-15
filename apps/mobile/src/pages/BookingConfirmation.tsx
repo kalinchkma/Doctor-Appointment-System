@@ -34,17 +34,27 @@ export function BookingConfirmation() {
             <h1>You are booked</h1>
             {doctor && <p className="specialty">{doctor.name}</p>}
             {slot && <p className="confirmation-time">{formatDateTime(slot.startsAt)}</p>}
+            {appointment?.patientNote && (
+              <p className="confirmation-note">Request saved: “{appointment.patientNote}”</p>
+            )}
             <p className="intro">
-              We have reserved this time for you. You can cancel from My appointments if your plans
-              change.
+              We have reserved this time for you. Open the appointment to see the clinic location
+              and any messages from the doctor.
             </p>
           </div>
           <IonButton
             expand="block"
             className="submit"
+            onClick={() => navigate(`/appointments/${appointmentId}`, { replace: true })}
+          >
+            View appointment details
+          </IonButton>
+          <IonButton
+            expand="block"
+            fill="outline"
             onClick={() => navigate('/appointments', { replace: true })}
           >
-            View my appointments
+            My appointments
           </IonButton>
           <IonButton
             expand="block"

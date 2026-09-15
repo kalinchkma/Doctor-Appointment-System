@@ -40,5 +40,23 @@ export const Appointments: CollectionConfig = {
     },
     { name: 'bookedAt', type: 'date', required: true },
     { name: 'cancelledAt', type: 'date' },
+    {
+      name: 'patientNote',
+      type: 'textarea',
+      maxLength: 500,
+      admin: {
+        description:
+          'Special request / comment from the patient. Patients set this when booking or from appointment details.',
+      },
+    },
+    {
+      name: 'doctorComment',
+      type: 'textarea',
+      maxLength: 1000,
+      admin: {
+        description:
+          'Visible to the patient on their appointment details. Use for prep instructions, reminders, or notes from the clinic.',
+      },
+    },
   ],
 }

@@ -270,6 +270,14 @@ export interface Appointment {
   status: 'booked' | 'cancelled';
   bookedAt: string;
   cancelledAt?: string | null;
+  /**
+   * Special request left by the patient when booking. Read-only after booking (set via the book API).
+   */
+  patientNote?: string | null;
+  /**
+   * Visible to the patient on their appointment details. Use for prep instructions, reminders, or notes from the clinic.
+   */
+  doctorComment?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -564,6 +572,8 @@ export interface AppointmentsSelect<T extends boolean = true> {
   status?: T;
   bookedAt?: T;
   cancelledAt?: T;
+  patientNote?: T;
+  doctorComment?: T;
   updatedAt?: T;
   createdAt?: T;
 }

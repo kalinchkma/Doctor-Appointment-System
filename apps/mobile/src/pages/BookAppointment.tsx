@@ -5,6 +5,7 @@ import {
   IonFooter,
   IonLoading,
   IonPage,
+  IonTextarea,
   IonToast,
   IonToolbar,
 } from '@ionic/react'
@@ -20,10 +21,13 @@ import { ApiError } from '../services/api/client'
 import { formatDay, formatTime, groupByDay } from '../lib/datetime'
 import type { AppointmentSlot } from '../types'
 
+const NOTE_LIMIT = 500
+
 export function BookAppointment() {
   const { doctorId = '' } = useParams()
   const navigate = useNavigate()
   const [selected, setSelected] = useState<string | null>(null)
+  const [patientNote, setPatientNote] = useState('')
   const [booking, setBooking] = useState(false)
   const [notice, setNotice] = useState('')
 
@@ -42,7 +46,7 @@ export function BookAppointment() {
     if (!selected) return
     setBooking(true)
     try {
-      const appointment = await bookAppointment(selected)
+      const appointment = await bookAppointment(selected, patientNote)
       navigate(`/appointments/${appointment.id}/confirmed`, { replace: true })
     } catch (reason) {
       const conflicted =
@@ -142,6 +146,25 @@ export function BookAppointment() {
               </div>
             </section>
           ))}
+
+          <section className="card-surface note-editor">
+            <h2>Special request</h2>
+            <p className="booking-hint">
+              Optional — tell the clinic about symptoms, accessibility needs, or anything they
+              should know before your visit.
+            </p>
+            <IonTextarea
+              value={patientNote}
+              maxlength={NOTE_LIMIT}
+              autoGrow
+              rows={3}
+              placeholder="e.g. Prefer a ground-floor room, bringing my child, …"
+              onIonInput={(event) => setPatientNote(event.detail.value ?? '')}
+            />
+            <p className="char-count">
+              {patientNote.length}/{NOTE_LIMIT}
+            </p>
+          </section>
 
           {data?.doctor && <DoctorMap doctor={data.doctor} compact />}
         </AsyncContent>

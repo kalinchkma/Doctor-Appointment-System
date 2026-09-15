@@ -358,6 +358,134 @@
   text-transform: capitalize;
 }
 
+.appointment-detail {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 28px;
+}
+
+.appointment-status-card h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--app-ink);
+}
+
+.appointment-when {
+  margin: 10px 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+.booking-doctor h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--app-ink);
+}
+
+.doctor-bio-snip {
+  margin-top: 12px;
+}
+
+.detail-secondary {
+  margin-top: 12px;
+}
+
+.notes-card h2,
+.note-editor h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: var(--app-ink);
+}
+
+.note-block {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f3f8f6;
+}
+
+.note-block.doctor-note {
+  background: #eef6ff;
+}
+
+.note-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+  margin-bottom: 6px;
+}
+
+.note-block p {
+  margin: 0;
+  color: var(--app-ink);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.muted-notes .intro {
+  margin: 0;
+}
+
+.note-editor ion-textarea {
+  --background: #f7fbfa;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --padding-top: 10px;
+  --padding-bottom: 10px;
+  border: 1px solid #d5e4e0;
+  border-radius: 12px;
+  margin-top: 4px;
+}
+
+.char-count {
+  margin: 6px 0 0;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--app-muted);
+}
+
+.list-note {
+  color: var(--ion-color-primary) !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.open-details {
+  margin: 10px 0 0 !important;
+  color: var(--ion-color-primary) !important;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.confirmation-note {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f3f8f6;
+  color: var(--app-ink);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.detail-note-editor {
+  margin-top: 12px;
+}
+
+.cancel-policy-msg {
+  margin: 8px 4px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff6e8;
+  border: 1px solid #e6c48a;
+  color: #5c4a28;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 /* Chat */
 .chat-log {
   display: grid;

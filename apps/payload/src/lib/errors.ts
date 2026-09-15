@@ -15,6 +15,7 @@ export const ErrorCode = {
   ALREADY_BOOKED_WITH_DOCTOR: 'ALREADY_BOOKED_WITH_DOCTOR',
   APPOINTMENT_NOT_FOUND: 'APPOINTMENT_NOT_FOUND',
   ALREADY_CANCELLED: 'ALREADY_CANCELLED',
+  CANCEL_TOO_LATE: 'CANCEL_TOO_LATE',
   ASSISTANT_UNAVAILABLE: 'ASSISTANT_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const
@@ -73,6 +74,12 @@ export const errors = {
     new ApiError(ErrorCode.APPOINTMENT_NOT_FOUND, 404, 'That appointment could not be found.'),
   alreadyCancelled: () =>
     new ApiError(ErrorCode.ALREADY_CANCELLED, 409, 'That appointment is already cancelled.'),
+  cancelTooLate: () =>
+    new ApiError(
+      ErrorCode.CANCEL_TOO_LATE,
+      409,
+      'Cancellations need to be made at least 1 hour before the appointment. Please contact the clinic if you need help.',
+    ),
 }
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status })

@@ -50,6 +50,10 @@ export type Appointment = {
   status: AppointmentStatus
   bookedAt: string
   cancelledAt?: string | null
+  /** Special request left by the patient when booking. */
+  patientNote?: string | null
+  /** Comment from the clinic / doctor, editable in Payload admin. */
+  doctorComment?: string | null
   createdAt: string
 }
 
