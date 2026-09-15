@@ -73,10 +73,12 @@ export const syncKnowledgeDocument: CollectionAfterChangeHook = async ({
   const logger = req.payload.logger
   const payload = req.payload
 
-  setImmediate(() => {
+  setTimeout(() => {
     void (async () => {
       try {
+        logger.info({ id, version: syncPayload.version, fileUrl: syncPayload.fileUrl }, 'scheduling RAG document sync')
         await syncDocument(syncPayload)
+        logger.info({ id }, 'RAG sync accepted')
       } catch (error) {
         logger.error({ err: error, id }, 'RAG sync request failed')
         try {
@@ -96,7 +98,7 @@ export const syncKnowledgeDocument: CollectionAfterChangeHook = async ({
         }
       }
     })()
-  })
+  }, 500)
 
   return doc
 }

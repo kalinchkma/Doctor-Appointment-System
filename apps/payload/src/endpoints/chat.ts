@@ -55,7 +55,24 @@ export const chatEndpoint: Endpoint = {
         throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
       }
 
-      const result = await askRag(parsed.data.question, req.headers.get('X-Request-Id') ?? undefined)
+      const requestId = req.headers.get('X-Request-Id') ?? `chat-${Date.now()}`
+      payload.logger.info(
+        { requestId, userId: String(req.user.id), question: parsed.data.question },
+        'chat request',
+      )
+
+      const result = await askRag(parsed.data.question, requestId)
+
+      payload.logger.info(
+        {
+          requestId,
+          sufficient: result.sufficient,
+          reason: result.reason,
+          topScore: result.topScore,
+          sources: result.sources?.length ?? 0,
+        },
+        'chat response from RAG',
+      )
 
       if (!result.sufficient) {
         await recordUnresolved(req, parsed.data.question, result.reason, result.topScore)

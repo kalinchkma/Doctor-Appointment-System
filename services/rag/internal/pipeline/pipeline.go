@@ -159,6 +159,18 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		MinCoverage: p.cfg.MinCoverage,
 	})
 
+	slog.Info("chat retrieval",
+		"question", truncate(question, 120),
+		"hits", len(hits),
+		"kept", len(decision.Kept),
+		"topScore", decision.TopScore,
+		"coverage", decision.Coverage,
+		"pass", decision.Pass,
+		"reason", string(decision.Reason),
+		"topTitle", firstTitle(hits),
+		"topTextLen", firstTextLen(hits),
+	)
+
 	if !decision.Pass {
 		return ChatResult{
 			Sufficient: false,
@@ -176,6 +188,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 
 	parsed, ok := llm.ParseGeneration(raw)
 	if !ok || !parsed.Sufficient || strings.TrimSpace(parsed.Answer) == "" {
+		slog.Info("chat llm declined or malformed", "ok", ok, "sufficient", parsed.Sufficient, "answerLen", len(strings.TrimSpace(parsed.Answer)))
 		return ChatResult{
 			Sufficient: false,
 			Answer:     FallbackAnswer,
@@ -190,6 +203,27 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		Sources:    sourcesFor(parsed.SourceChunkIDs, decision.Kept),
 		TopScore:   decision.TopScore,
 	}, nil
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func firstTitle(hits []vectorstore.ScoredChunk) string {
+	if len(hits) == 0 {
+		return ""
+	}
+	return hits[0].Title
+}
+
+func firstTextLen(hits []vectorstore.ScoredChunk) int {
+	if len(hits) == 0 {
+		return 0
+	}
+	return len(hits[0].Text)
 }
 
 func (p *Pipeline) ReportStatus(ctx context.Context, documentID, status, indexError string) {

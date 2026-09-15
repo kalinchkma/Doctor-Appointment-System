@@ -11,6 +11,8 @@ export const KnowledgeDocuments: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'version', 'indexStatus', 'indexedAt'],
+    description:
+      'Indexed PDFs for the healthcare assistant. Uploading under Knowledge Files also creates a document here automatically.',
   },
   timestamps: true,
   hooks: {

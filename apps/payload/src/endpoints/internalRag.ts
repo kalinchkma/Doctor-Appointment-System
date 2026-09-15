@@ -10,23 +10,21 @@ function requireInternalSecret(req: { headers: Headers }): boolean {
   return req.headers.get('X-RAG-Internal-Secret') === (process.env.RAG_INTERNAL_SECRET || '')
 }
 
-function publicBase(): string {
-  return (
-    process.env.PAYLOAD_PUBLIC_URL ||
-    process.env.PAYLOAD_INTERNAL_URL ||
-    'http://127.0.0.1:3000'
-  ).replace(/\/$/, '')
-}
-
 /**
  * Loads a knowledge PDF whether it lives on the local volume or an object store.
- * Cloud adapters expose an absolute `url`; local uploads expose a relative /api/... path
- * or a filename we read from KNOWLEDGE_FILES_DIR.
+ * Cloud adapters expose an absolute `url`; local uploads are read from KNOWLEDGE_FILES_DIR
+ * (the public /api/knowledge-files URL is admin-only, so we never rely on it here).
  */
 async function loadKnowledgePdf(file: {
   filename?: string | null
   url?: string | null
 }): Promise<Buffer | null> {
+  const filename = file.filename?.trim()
+  if (filename) {
+    const fromDisk = await readFile(path.join(knowledgeFilesDir(), filename)).catch(() => null)
+    if (fromDisk) return fromDisk
+  }
+
   const url = file.url?.trim()
   if (url?.startsWith('http://') || url?.startsWith('https://')) {
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) }).catch(() => null)
@@ -34,18 +32,22 @@ async function loadKnowledgePdf(file: {
     return Buffer.from(await response.arrayBuffer())
   }
 
-  if (url?.startsWith('/')) {
-    const response = await fetch(`${publicBase()}${url}`, {
-      signal: AbortSignal.timeout(30_000),
-    }).catch(() => null)
-    if (response?.ok) {
-      return Buffer.from(await response.arrayBuffer())
-    }
+  return null
+}
+
+function documentIdFromReq(req: {
+  routeParams?: Record<string, unknown>
+  url?: string
+  pathname?: string
+}): string {
+  const fromParams = req.routeParams?.id
+  if (fromParams != null && String(fromParams).length > 0) {
+    return String(fromParams)
   }
 
-  const filename = file.filename
-  if (!filename) return null
-  return readFile(path.join(knowledgeFilesDir(), filename)).catch(() => null)
+  const path = req.pathname || req.url || ''
+  const match = path.match(/\/internal\/knowledge-documents\/([^/?#]+)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
 }
 
 export const internalRagEndpoints: Endpoint[] = [
@@ -97,7 +99,19 @@ export const internalRagEndpoints: Endpoint[] = [
       }
       try {
         const settings = await loadRagSettings(req.payload)
+        req.payload.logger.info(
+          {
+            provider: settings.chatProvider,
+            model: settings.chatModel,
+            userLen: body.user.length,
+          },
+          'chat proxy request',
+        )
         const content = await proxyCompletion(settings, body.system ?? '', body.user)
+        req.payload.logger.info(
+          { provider: settings.chatProvider, model: settings.chatModel, contentLen: content.length },
+          'chat proxy response',
+        )
         return json({ content })
       } catch (error) {
         req.payload.logger.error({ err: error }, 'chat proxy failed')
@@ -113,18 +127,41 @@ export const internalRagEndpoints: Endpoint[] = [
         return json({ error: 'unauthorized' }, 401)
       }
 
-      const id = String(req.routeParams?.id ?? '')
+      const id = documentIdFromReq(req)
+      if (!id) {
+        return json({ error: 'file not found' }, 404)
+      }
+
       const document = await req.payload
-        .findByID({ collection: 'knowledge-documents', id, depth: 1, overrideAccess: true })
+        .findByID({ collection: 'knowledge-documents', id, depth: 0, overrideAccess: true })
         .catch(() => null)
 
-      const file = document?.file
-      if (!file || typeof file !== 'object') {
+      const fileRef = document?.file
+      const fileId =
+        typeof fileRef === 'string' || typeof fileRef === 'number'
+          ? String(fileRef)
+          : fileRef && typeof fileRef === 'object' && 'id' in fileRef
+            ? String((fileRef as { id: string }).id)
+            : null
+
+      if (!fileId) {
+        return json({ error: 'file not found' }, 404)
+      }
+
+      const file = await req.payload
+        .findByID({ collection: 'knowledge-files', id: fileId, depth: 0, overrideAccess: true })
+        .catch(() => null)
+
+      if (!file) {
         return json({ error: 'file not found' }, 404)
       }
 
       const data = await loadKnowledgePdf(file as { filename?: string | null; url?: string | null })
       if (!data) {
+        req.payload.logger.error(
+          { id, fileId, filename: (file as { filename?: string }).filename },
+          'knowledge pdf bytes missing on disk/url',
+        )
         return json({ error: 'file not found' }, 404)
       }
 
@@ -144,7 +181,7 @@ export const internalRagEndpoints: Endpoint[] = [
         return json({ error: 'unauthorized' }, 401)
       }
 
-      const id = String(req.routeParams?.id ?? '')
+      const id = documentIdFromReq(req)
       const body = ((await req.json?.()) ?? {}) as {
         indexStatus?: 'indexed' | 'failed' | 'processing' | 'pending'
         indexError?: string

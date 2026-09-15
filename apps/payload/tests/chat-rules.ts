@@ -69,7 +69,7 @@ async function main() {
 
   const asked = await api(
     '/api/chat',
-    { method: 'POST', body: JSON.stringify({ question: 'Why is folic acid important during pregnancy?' }) },
+    { method: 'POST', body: JSON.stringify({ question: 'At what age should complementary foods start?' }) },
     patient.token,
   )
 

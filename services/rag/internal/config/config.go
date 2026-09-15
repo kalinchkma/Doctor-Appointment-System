@@ -39,7 +39,8 @@ func FromEnv() (Config, error) {
 		MinCoverage:      envFloat("RAG_MIN_COVERAGE", 0.25),
 		EmbedDimensions:  envInt("EMBEDDING_DIMENSIONS", 768),
 		IngestTimeoutSec: envInt("RAG_INGEST_TIMEOUT_SEC", 120),
-		ChatTimeoutSec:   envInt("RAG_CHAT_TIMEOUT_SEC", 30),
+		// 60s leaves headroom for a cold Ollama model load after retrieval.
+		ChatTimeoutSec:   envInt("RAG_CHAT_TIMEOUT_SEC", 60),
 	}
 
 	if cfg.EmbedDimensions < 8 {

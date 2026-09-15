@@ -52,7 +52,7 @@ export async function askRag(question: string, requestId?: string): Promise<RagC
       body: JSON.stringify({ question }),
       headers: requestId ? { 'X-Request-Id': requestId } : {},
     },
-    30_000,
+    90_000,
   )
 
   if (response.status === 502 || response.status === 504) {

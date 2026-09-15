@@ -45,7 +45,9 @@ services:
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       PAYLOAD_DATABASE_URI: ${PAYLOAD_DATABASE_URI}
       PAYLOAD_PUBLIC_URL: ${PAYLOAD_PUBLIC_URL}
-      PAYLOAD_INTERNAL_URL: ${PAYLOAD_INTERNAL_URL:-http://cms:3000}
+      # Always the Compose DNS name so RAG (and seed-triggered sync) can fetch PDFs.
+      # Host-only CMS runs should set this in the process env to http://127.0.0.1:3000.
+      PAYLOAD_INTERNAL_URL: http://cms:3000
       MOBILE_ORIGIN: ${MOBILE_ORIGIN}
       RAG_SERVICE_URL: ${RAG_SERVICE_URL}
       RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
@@ -94,6 +96,7 @@ services:
       RAG_STRONG_SCORE: ${RAG_STRONG_SCORE}
       RAG_MIN_CHUNKS: ${RAG_MIN_CHUNKS}
       RAG_MIN_COVERAGE: ${RAG_MIN_COVERAGE}
+      RAG_CHAT_TIMEOUT_SEC: ${RAG_CHAT_TIMEOUT_SEC:-60}
       PAYLOAD_INTERNAL_URL: http://cms:3000
     extra_hosts:
       - 'host.docker.internal:host-gateway'
@@ -121,7 +124,7 @@ services:
       PAYLOAD_DATABASE_URI: ${PAYLOAD_DATABASE_URI}
       RAG_SERVICE_URL: ${RAG_SERVICE_URL}
       RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
-      PAYLOAD_INTERNAL_URL: ${PAYLOAD_INTERNAL_URL:-http://cms:3000}
+      PAYLOAD_INTERNAL_URL: http://cms:3000
       KNOWLEDGE_FILES_DIR: /workspace/apps/payload/knowledge-files
       MEDIA_DIR: /workspace/apps/payload/media
     volumes:

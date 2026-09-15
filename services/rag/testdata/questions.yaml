@@ -9,26 +9,32 @@ thresholds:
   minCoverage: 0.25
 
 answerable:
-  - question: Why is folic acid important during pregnancy?
+  - question: Does energy need to double during pregnancy?
     expect: sufficient
     notes: Explicitly answered by pregnancy-nutrition.pdf
-  - question: Which foods are commonly advised against during pregnancy?
+  - question: Which micronutrients are highlighted for pregnancy nutrition?
     expect: sufficient
-  - question: When are complementary foods usually introduced?
+  - question: What does the pregnancy nutrition guide say about alcohol?
     expect: sufficient
-  - question: Why should honey not be given to infants under twelve months?
+  - question: What protein foods are listed for pregnancy?
     expect: sufficient
-  - question: What warning signs in pregnancy need same-day medical attention?
+  - question: How many antenatal contacts did the WHO 2016 model recommend?
     expect: sufficient
-  - question: How often are prenatal visits scheduled after 28 weeks?
+    notes: Explicitly answered by prenatal-care.pdf
+  - question: What is the purpose of antenatal care?
     expect: sufficient
-  - question: What can help the body absorb plant iron?
+  - question: What can maternal assessment include during prenatal care?
     expect: sufficient
-  - question: Is cow's milk a main drink before twelve months?
+  - question: What does person-centred prenatal care mean?
     expect: sufficient
-  - question: What does a typical prenatal visit include?
+  - question: At what age should complementary foods start?
     expect: sufficient
-  - question: What drinks are preferred for hydration in pregnancy?
+    notes: Explicitly answered by child-nutrition.pdf
+  - question: How many meals per day are described for ages 6–8 months?
+    expect: sufficient
+  - question: What is responsive feeding?
+    expect: sufficient
+  - question: Which drinks are described as low nutrient value for young children?
     expect: sufficient
 
 unanswerable:
@@ -38,11 +44,11 @@ unanswerable:
   - question: How do I reset a Windows password?
     expect: fallback
     reason: no_results
-  - question: What is the correct insulin dose for gestational diabetes?
+  - question: What exact calories does a 14-month-old need?
     expect: fallback
-  - question: Can I take ibuprofen at 32 weeks?
+  - question: What exact prenatal vitamin brand should everyone take?
     expect: fallback
-  - question: How is a caesarean section performed step by step?
+  - question: Can you diagnose preeclampsia from my blood pressure?
     expect: fallback
 
 weakly_related:
@@ -53,9 +59,9 @@ weakly_related:
   - question: Which antidepressant is safest in breastfeeding?
     expect: fallback
     reason: low_coverage
-  - question: What is the MMR vaccine schedule for a two-year-old?
+  - question: What antibiotic should a child take for pneumonia?
     expect: fallback
-  - question: How much vitamin A is toxic in pregnancy?
+  - question: What medication cures morning sickness?
     expect: fallback
-  - question: What antibiotic treats a urinary infection at 20 weeks?
+  - question: Which hospital should I deliver at in Dhaka?
     expect: fallback

@@ -30,8 +30,11 @@ type Chunk struct {
 }
 
 // ScoredChunk is a retrieval hit. Score is Atlas's (1+cos)/2 normalisation.
+// bson:",inline" is required so $vectorSearch projections (flat title/text/...) decode
+// into the embedded Chunk fields. Without it, Score populates but Text stays empty and
+// the lexical coverage gate always fails.
 type ScoredChunk struct {
-	Chunk
+	Chunk `bson:",inline"`
 	Score float64 `bson:"score" json:"score"`
 }
 

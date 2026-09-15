@@ -104,7 +104,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.pipe.Ask(ctx, body.Question)
 	if err != nil {
-		slog.Error("chat failed", "error", err, "requestId", r.Header.Get("X-Request-Id"))
+		slog.Error("chat failed", "error", err, "requestId", r.Header.Get("X-Request-Id"), "question", body.Question)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			writeJSON(w, http.StatusGatewayTimeout, map[string]string{
 				"error": "The assistant is temporarily unavailable. Please try again.",
@@ -116,6 +116,13 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	slog.Info("chat response",
+		"requestId", r.Header.Get("X-Request-Id"),
+		"sufficient", result.Sufficient,
+		"reason", result.Reason,
+		"topScore", result.TopScore,
+		"sources", len(result.Sources),
+	)
 	writeJSON(w, http.StatusOK, result)
 }
 

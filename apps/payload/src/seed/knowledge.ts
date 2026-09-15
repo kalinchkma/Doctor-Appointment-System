@@ -2,10 +2,15 @@ import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Payload } from 'payload'
+import { syncDocument } from '../services/rag'
 
 const knowledgeDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/knowledge')
 
 const TERMINAL = new Set(['indexed', 'failed'])
+
+function payloadInternalUrl(): string {
+  return (process.env.PAYLOAD_INTERNAL_URL || 'http://cms:3000').replace(/\/$/, '')
+}
 
 async function clearKnowledge(payload: Payload) {
   const documents = await payload.find({
@@ -44,9 +49,6 @@ export async function waitForKnowledgeIndex(
   const pollMs = options.pollMs ?? 2_000
   const deadline = Date.now() + timeoutMs
 
-  // Let deferred afterChange setImmediate callbacks flush first.
-  await new Promise<void>((resolve) => setImmediate(resolve))
-
   while (Date.now() < deadline) {
     const docs = await payload.find({
       collection: 'knowledge-documents',
@@ -78,18 +80,10 @@ export async function waitForKnowledgeIndex(
 }
 
 export async function seedKnowledge(payload: Payload) {
+  // Always refresh from docs/knowledge so PDF content updates are re-uploaded and re-indexed.
   const existing = await payload.find({ collection: 'knowledge-documents', limit: 20, overrideAccess: true })
-  const incomplete = existing.docs.some((doc) => doc.indexStatus !== 'indexed')
-
-  if (existing.totalDocs > 0 && !incomplete) {
-    payload.logger.info(`knowledge documents already present (${existing.totalDocs}), skipping`)
-    return
-  }
-
-  // A previous seed can leave metadata without files on the CMS volume (or stuck in
-  // pending/failed). Wipe and recreate so uploads land on the shared volume and sync again.
   if (existing.totalDocs > 0) {
-    payload.logger.info('clearing incomplete knowledge documents before re-seed')
+    payload.logger.info(`clearing ${existing.totalDocs} knowledge document(s) before re-seed`)
     await clearKnowledge(payload)
   }
 
@@ -98,6 +92,8 @@ export async function seedKnowledge(payload: Payload) {
     payload.logger.warn(`no PDFs in ${knowledgeDir}`)
     return
   }
+
+  const created: { id: string; title: string; version: number }[] = []
 
   for (const filename of files) {
     const title = filename
@@ -108,21 +104,52 @@ export async function seedKnowledge(payload: Payload) {
     const uploaded = await payload.create({
       collection: 'knowledge-files',
       overrideAccess: true,
-      context: { skipRagSync: true },
+      // Seed creates the Knowledge Document below with a curated title.
+      context: { skipKnowledgeDocument: true },
       data: {},
       filePath: path.join(knowledgeDir, filename),
     })
 
-    await payload.create({
+    const doc = await payload.create({
       collection: 'knowledge-documents',
       overrideAccess: true,
+      // Sync after all creates commit — avoids RAG fetching a not-yet-visible document.
+      context: { skipRagSync: true },
       data: {
         title,
         file: uploaded.id,
         version: 1,
-        indexStatus: 'pending',
+        indexStatus: 'processing',
       },
     })
+
+    created.push({ id: String(doc.id), title: String(doc.title), version: Number(doc.version) || 1 })
+  }
+
+  const base = payloadInternalUrl()
+  for (const doc of created) {
+    const fileUrl = `${base}/api/internal/knowledge-documents/${doc.id}/file`
+    try {
+      payload.logger.info({ id: doc.id, fileUrl }, 'seed triggering RAG document sync')
+      await syncDocument({
+        documentId: doc.id,
+        version: doc.version,
+        title: doc.title,
+        fileUrl,
+      })
+    } catch (error) {
+      payload.logger.error({ err: error, id: doc.id }, 'seed RAG sync failed')
+      await payload.update({
+        collection: 'knowledge-documents',
+        id: doc.id,
+        overrideAccess: true,
+        context: { skipRagSync: true },
+        data: {
+          indexStatus: 'failed',
+          indexError: 'The indexing service could not be reached during seed.',
+        },
+      })
+    }
   }
 
   payload.logger.info(`seeded ${files.length} knowledge documents (indexing in background)`)
