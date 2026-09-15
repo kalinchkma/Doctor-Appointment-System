@@ -3,6 +3,7 @@ import {
   IonButton,
   IonContent,
   IonFooter,
+  IonInput,
   IonLoading,
   IonPage,
   IonTextarea,
@@ -15,6 +16,7 @@ import { DoctorAvatar } from '../components/DoctorAvatar'
 import { DoctorMap } from '../components/DoctorMap'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor, useAsync } from '../hooks/useAsync'
+import { useAuth } from '../hooks/useAuth'
 import { bookAppointment } from '../services/api/appointments'
 import { getDoctor, listDoctorSlots } from '../services/api/doctors'
 import { ApiError } from '../services/api/client'
@@ -23,10 +25,23 @@ import type { AppointmentSlot } from '../types'
 
 const NOTE_LIMIT = 500
 
+function looksLikePhone(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+  return digits.length >= 7 && /^[\d+\-\s().]+$/.test(value.trim())
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
 export function BookAppointment() {
   const { doctorId = '' } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [selected, setSelected] = useState<string | null>(null)
+  const [contactName, setContactName] = useState(user?.name ?? '')
+  const [contactPhone, setContactPhone] = useState('')
+  const [contactEmail, setContactEmail] = useState(user?.email ?? '')
   const [patientNote, setPatientNote] = useState('')
   const [booking, setBooking] = useState(false)
   const [notice, setNotice] = useState('')
@@ -42,11 +57,28 @@ export function BookAppointment() {
     [doctorId],
   )
 
+  const contactReady =
+    contactName.trim().length > 0 &&
+    looksLikePhone(contactPhone) &&
+    looksLikeEmail(contactEmail)
+
   const confirm = async () => {
     if (!selected) return
+    if (!contactReady) {
+      setNotice('Please fill in your contact name, phone, and email so the clinic can reach you.')
+      return
+    }
     setBooking(true)
     try {
-      const appointment = await bookAppointment(selected, patientNote)
+      const appointment = await bookAppointment(
+        selected,
+        {
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          contactEmail: contactEmail.trim(),
+        },
+        patientNote,
+      )
       navigate(`/appointments/${appointment.id}/confirmed`, { replace: true })
     } catch (reason) {
       const conflicted =
@@ -147,6 +179,44 @@ export function BookAppointment() {
             </section>
           ))}
 
+          <section className="card-surface contact-editor">
+            <h2>Contact information</h2>
+            <p className="booking-hint">
+              Required — the clinic uses these details to reach you about this appointment.
+            </p>
+            <IonInput
+              fill="outline"
+              label="Full name"
+              labelPlacement="stacked"
+              autocomplete="name"
+              required
+              value={contactName}
+              onIonInput={(event) => setContactName(event.detail.value ?? '')}
+            />
+            <IonInput
+              fill="outline"
+              label="Phone number"
+              labelPlacement="stacked"
+              type="tel"
+              autocomplete="tel"
+              inputmode="tel"
+              required
+              value={contactPhone}
+              placeholder="e.g. +880 1712 345678"
+              onIonInput={(event) => setContactPhone(event.detail.value ?? '')}
+            />
+            <IonInput
+              fill="outline"
+              label="Email"
+              labelPlacement="stacked"
+              type="email"
+              autocomplete="email"
+              required
+              value={contactEmail}
+              onIonInput={(event) => setContactEmail(event.detail.value ?? '')}
+            />
+          </section>
+
           <section className="card-surface note-editor">
             <h2>Special request</h2>
             <p className="booking-hint">
@@ -186,10 +256,14 @@ export function BookAppointment() {
             </div>
             <IonButton
               expand="block"
-              disabled={!selected || booking || !hasOpenSlot}
+              disabled={!selected || !contactReady || booking || !hasOpenSlot}
               onClick={confirm}
             >
-              {selected ? 'Confirm booking' : 'Select a time'}
+              {!selected
+                ? 'Select a time'
+                : !contactReady
+                  ? 'Add contact details'
+                  : 'Confirm booking'}
             </IonButton>
           </IonToolbar>
         </IonFooter>

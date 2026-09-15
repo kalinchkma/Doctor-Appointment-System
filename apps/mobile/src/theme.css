@@ -392,10 +392,29 @@
 }
 
 .notes-card h2,
-.note-editor h2 {
+.note-editor h2,
+.contact-editor h2,
+.contact-card h2 {
   margin: 0 0 8px;
   font-size: 1rem;
   color: var(--app-ink);
+}
+
+.contact-editor ion-input,
+.contact-card p {
+  margin-bottom: 12px;
+}
+
+.contact-card p {
+  margin: 0 0 12px;
+  color: var(--app-ink);
+  line-height: 1.4;
+}
+
+.contact-card a {
+  color: var(--ion-color-primary);
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .note-block {

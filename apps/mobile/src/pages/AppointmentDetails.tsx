@@ -106,6 +106,32 @@ export function AppointmentDetails() {
                 <p className="appointment-when">{formatDateTime(start)}</p>
               </section>
 
+              {(appointment.contactName ||
+                appointment.contactPhone ||
+                appointment.contactEmail) && (
+                <section className="card-surface contact-card">
+                  <h2>Your contact details</h2>
+                  {appointment.contactName && (
+                    <p>
+                      <span className="note-label">Name</span>
+                      {appointment.contactName}
+                    </p>
+                  )}
+                  {appointment.contactPhone && (
+                    <p>
+                      <span className="note-label">Phone</span>
+                      <a href={`tel:${appointment.contactPhone}`}>{appointment.contactPhone}</a>
+                    </p>
+                  )}
+                  {appointment.contactEmail && (
+                    <p>
+                      <span className="note-label">Email</span>
+                      <a href={`mailto:${appointment.contactEmail}`}>{appointment.contactEmail}</a>
+                    </p>
+                  )}
+                </section>
+              )}
+
               {doctor && (
                 <section className="card-surface">
                   <div className="booking-doctor">

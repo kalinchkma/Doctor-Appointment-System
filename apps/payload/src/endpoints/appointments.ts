@@ -13,6 +13,22 @@ import { canCancelAppointment } from '../lib/cancelPolicy'
 
 const bookSchema = z.object({
   slotId: z.string().min(1, 'A slot must be selected.'),
+  contactName: z
+    .string()
+    .trim()
+    .min(1, 'Please enter the name the clinic should contact.')
+    .max(120, 'Contact name must be 120 characters or fewer.'),
+  contactPhone: z
+    .string()
+    .trim()
+    .min(7, 'Please enter a valid phone number.')
+    .max(40, 'Phone number must be 40 characters or fewer.')
+    .regex(/^[\d+\-\s().]+$/, 'Please enter a valid phone number.'),
+  contactEmail: z
+    .string()
+    .trim()
+    .email('Please enter a valid email address.')
+    .max(160, 'Email must be 160 characters or fewer.'),
   patientNote: z
     .string()
     .trim()
@@ -114,7 +130,8 @@ const book: Endpoint = {
 
     try {
       const user = requireUser(req)
-      const { slotId, patientNote } = await parseBookBody(req)
+      const { slotId, contactName, contactPhone, contactEmail, patientNote } =
+        await parseBookBody(req)
 
       const transaction = await begin(req)
       const slots = slotModel(req)
@@ -160,6 +177,9 @@ const book: Endpoint = {
             slot: slotId,
             status: 'booked',
             bookedAt: new Date().toISOString(),
+            contactName,
+            contactPhone,
+            contactEmail,
             ...(patientNote ? { patientNote } : {}),
           },
         })
@@ -173,6 +193,9 @@ const book: Endpoint = {
             slot: appointment.slot,
             status: appointment.status,
             bookedAt: appointment.bookedAt,
+            contactName: appointment.contactName,
+            contactPhone: appointment.contactPhone,
+            contactEmail: appointment.contactEmail,
             patientNote: appointment.patientNote ?? null,
             doctorComment: appointment.doctorComment ?? null,
           },

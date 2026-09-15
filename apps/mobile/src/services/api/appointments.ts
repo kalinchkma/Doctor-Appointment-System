@@ -1,4 +1,4 @@
-import type { Appointment } from '../../types'
+import type { Appointment, BookingContact } from '../../types'
 import { get, post } from './client'
 
 type Paginated<T> = { docs: T[] }
@@ -16,14 +16,24 @@ export async function listMyAppointments(): Promise<Appointment[]> {
 /** Access control rejects this with a 403 unless the appointment belongs to the caller. */
 export const getAppointment = (id: string) => get<Appointment>(`/api/appointments/${id}?depth=2`)
 
-export const bookAppointment = (slotId: string, patientNote?: string) =>
+export const bookAppointment = (
+  slotId: string,
+  contact: BookingContact,
+  patientNote?: string,
+) =>
   post<{
     id: string
     status: string
     bookedAt: string
+    contactName: string
+    contactPhone: string
+    contactEmail: string
     patientNote?: string | null
   }>('/api/appointments/book', {
     slotId,
+    contactName: contact.contactName.trim(),
+    contactPhone: contact.contactPhone.trim(),
+    contactEmail: contact.contactEmail.trim(),
     ...(patientNote?.trim() ? { patientNote: patientNote.trim() } : {}),
   })
 

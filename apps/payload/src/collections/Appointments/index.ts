@@ -10,7 +10,7 @@ export const Appointments: CollectionConfig = {
   slug: 'appointments',
   admin: {
     useAsTitle: 'id',
-    defaultColumns: ['patient', 'doctor', 'slot', 'status', 'createdAt'],
+    defaultColumns: ['patient', 'doctor', 'contactPhone', 'status', 'createdAt'],
   },
   timestamps: true,
   endpoints: appointmentEndpoints,
@@ -40,6 +40,30 @@ export const Appointments: CollectionConfig = {
     },
     { name: 'bookedAt', type: 'date', required: true },
     { name: 'cancelledAt', type: 'date' },
+    {
+      name: 'contactName',
+      type: 'text',
+      required: true,
+      admin: {
+        description: 'Name the clinic should use when contacting the patient about this visit.',
+      },
+    },
+    {
+      name: 'contactPhone',
+      type: 'text',
+      required: true,
+      admin: {
+        description: 'Phone number for appointment reminders or clinic callbacks.',
+      },
+    },
+    {
+      name: 'contactEmail',
+      type: 'email',
+      required: true,
+      admin: {
+        description: 'Email the clinic can use for this appointment.',
+      },
+    },
     {
       name: 'patientNote',
       type: 'textarea',

@@ -49,7 +49,12 @@ async function book(session: Session, slotId: string) {
   const response = await fetch(`${BASE_URL}/api/appointments/book`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `JWT ${session.token}` },
-    body: JSON.stringify({ slotId }),
+    body: JSON.stringify({
+      slotId,
+      contactName: 'Race Patient',
+      contactPhone: '+880 1712 345678',
+      contactEmail: session.email,
+    }),
   })
   return { status: response.status, body: await response.json() }
 }

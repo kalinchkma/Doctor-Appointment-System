@@ -23,6 +23,16 @@ function check(name: string, ok: boolean, detail = '') {
 
 type Patient = { id: string; token: string }
 
+const sampleContact = {
+  contactName: 'Test Patient',
+  contactPhone: '+880 1712 345678',
+  contactEmail: 'patient@example.test',
+}
+
+function bookBody(slotId: string, extra: Record<string, unknown> = {}) {
+  return JSON.stringify({ slotId, ...sampleContact, ...extra })
+}
+
 async function api(path: string, init: RequestInit = {}, token?: string) {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
@@ -80,16 +90,27 @@ async function main() {
 
   const missing = await api(
     '/api/appointments/book',
-    { method: 'POST', body: JSON.stringify({ slotId: '000000000000000000000000' }) },
+    { method: 'POST', body: bookBody('000000000000000000000000') },
     alice.token,
   )
   check('unknown slot returns 404', missing.status === 404, `got ${missing.status}`)
+
+  const noContact = await api(
+    '/api/appointments/book',
+    { method: 'POST', body: JSON.stringify({ slotId: slots[0]!.id }) },
+    alice.token,
+  )
+  check(
+    'booking without contact details is rejected',
+    noContact.status === 400,
+    `got ${noContact.status}`,
+  )
 
   // --- happy path, and the patient is taken from the token ---
   const booked = await api(
     '/api/appointments/book',
     // A tampered patient id in the body must be ignored.
-    { method: 'POST', body: JSON.stringify({ slotId: slots[0]!.id, patient: bob.id }) },
+    { method: 'POST', body: bookBody(slots[0]!.id, { patient: bob.id }) },
     alice.token,
   )
   check('booking succeeds', booked.status === 201, `got ${booked.status}`)
@@ -110,7 +131,7 @@ async function main() {
   if (sameDoctorSlot) {
     const secondSameDoctor = await api(
       '/api/appointments/book',
-      { method: 'POST', body: JSON.stringify({ slotId: sameDoctorSlot.id }) },
+      { method: 'POST', body: bookBody(sameDoctorSlot.id) },
       alice.token,
     )
     check(
@@ -170,7 +191,13 @@ async function main() {
 
   const rebooked = await api(
     '/api/appointments/book',
-    { method: 'POST', body: JSON.stringify({ slotId: slots[0]!.id }) },
+    {
+      method: 'POST',
+      body: bookBody(slots[0]!.id, {
+        contactName: 'Bob Patient',
+        contactEmail: 'bob@example.test',
+      }),
+    },
     bob.token,
   )
   check(

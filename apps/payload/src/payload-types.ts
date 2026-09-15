@@ -271,7 +271,19 @@ export interface Appointment {
   bookedAt: string;
   cancelledAt?: string | null;
   /**
-   * Special request left by the patient when booking. Read-only after booking (set via the book API).
+   * Name the clinic should use when contacting the patient about this visit.
+   */
+  contactName: string;
+  /**
+   * Phone number for appointment reminders or clinic callbacks.
+   */
+  contactPhone: string;
+  /**
+   * Email the clinic can use for this appointment.
+   */
+  contactEmail: string;
+  /**
+   * Special request / comment from the patient. Patients set this when booking or from appointment details.
    */
   patientNote?: string | null;
   /**
@@ -572,6 +584,9 @@ export interface AppointmentsSelect<T extends boolean = true> {
   status?: T;
   bookedAt?: T;
   cancelledAt?: T;
+  contactName?: T;
+  contactPhone?: T;
+  contactEmail?: T;
   patientNote?: T;
   doctorComment?: T;
   updatedAt?: T;
