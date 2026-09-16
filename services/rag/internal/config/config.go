@@ -38,7 +38,8 @@ func FromEnv() (Config, error) {
 		MinChunks:        envInt("RAG_MIN_CHUNKS", 1),
 		MinCoverage:      envFloat("RAG_MIN_COVERAGE", 0.25),
 		EmbedDimensions:  envInt("EMBEDDING_DIMENSIONS", 768),
-		IngestTimeoutSec: envInt("RAG_INGEST_TIMEOUT_SEC", 120),
+		// Large PDFs produce many chunks; each embed batch may take tens of seconds on Ollama.
+		IngestTimeoutSec: envInt("RAG_INGEST_TIMEOUT_SEC", 900),
 		// 60s leaves headroom for a cold Ollama model load after retrieval.
 		ChatTimeoutSec: envInt("RAG_CHAT_TIMEOUT_SEC", 180),
 	}
@@ -48,6 +49,9 @@ func FromEnv() (Config, error) {
 	}
 	if cfg.MaxConcurrency < 1 {
 		cfg.MaxConcurrency = 1
+	}
+	if cfg.IngestTimeoutSec < 60 {
+		cfg.IngestTimeoutSec = 60
 	}
 	return cfg, nil
 }

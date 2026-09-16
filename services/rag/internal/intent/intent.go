@@ -1,57 +1,61 @@
 package intent
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 )
 
+// Kind is a light pre-filter for chat turns.
+// Only pure greetings / identity stay conversational. Everything else goes to RAG
+// against whatever documents are currently in the knowledge base.
 type Kind string
 
 const (
-	KindGreeting Kind = "greeting"
-	KindIdentity Kind = "identity"
-	KindOffTopic Kind = "off_topic"
-	KindMedical  Kind = "medical"
+	KindGreeting  Kind = "greeting"
+	KindIdentity  Kind = "identity"
+	KindKnowledge Kind = "knowledge"
 )
-
-// Healthcare / maternal-child topic signals used to keep medical questions on the RAG path.
-// Stem-style alternates (pregnan, nutrit, …) must NOT require a trailing \b after the group.
-var medicalTerms = regexp.MustCompile(`(?i)\b(?:pregnan\w*|prenatal|antenatal|fetal|foetal|matern\w*|trimester|birth|labour|labor|breastfeed\w*|lactat\w*|infant\w*|newborn|neonat\w*|child\w*|bab(?:y|ies)|paediat\w*|pediat\w*|nutrit\w*|diet\w*|foods?|meals?|feeding|complementary|micronutrient\w*|folate|folic|iron|iodine|calcium|vitamin\w*|hydrat\w*|nausea|vomit\w*|constipat\w*|heartburn|warning|symptom\w*|vaccine\w*|infect\w*|growth|milk|honey|choking|responsive\s+feeding|doctors?|clinic\w*|healthcare|medical|medicine|drugs?|doses?|dosage|tablets?|pain|fever|diabetes|blood\s+pressure|ultrasound|energy|protein|who\s+2016|contacts?)`)
 
 var greetingExact = map[string]struct{}{
 	"hi": {}, "hello": {}, "hey": {}, "hiya": {}, "howdy": {},
 	"good morning": {}, "good afternoon": {}, "good evening": {}, "good night": {},
 	"morning": {}, "evening": {}, "yo": {}, "sup": {}, "hi there": {}, "hello there": {},
 	"hey there": {}, "greetings": {},
+	"thanks": {}, "thank you": {}, "thx": {}, "ok": {}, "okay": {},
+	"bye": {}, "goodbye": {}, "see you": {},
 }
 
-var identityPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)^(who\s+are\s+you|what\s+are\s+you|what'?s?\s+your\s+name)\??$`),
-	regexp.MustCompile(`(?i)^(tell\s+me\s+about\s+(yourself|you)|introduce\s+yourself)\??$`),
-	regexp.MustCompile(`(?i)^what\s+can\s+you\s+(do|help\s+with|help\s+me\s+with)\??$`),
-	regexp.MustCompile(`(?i)^how\s+can\s+you\s+help(\s+me)?\??$`),
+var identityExact = []string{
+	"who are you",
+	"what are you",
+	"whats your name",
+	"what's your name",
+	"what is your name",
+	"tell me about yourself",
+	"tell me about you",
+	"introduce yourself",
+	"what can you do",
+	"what can you help with",
+	"what can you help me with",
+	"how can you help",
+	"how can you help me",
 }
 
 const (
-	GreetingAnswer = "Hello! I'm the healthcare information assistant for this clinic app. Ask me about pregnancy nutrition, prenatal care, or child nutrition from our knowledge documents."
-	IdentityAnswer = "I'm a healthcare information assistant. I answer questions using the clinic's pregnancy, prenatal-care, and child-nutrition documents. I don't diagnose or prescribe — for personal medical advice, please speak with a clinician."
-	OffTopicAnswer = "I can chat briefly, but I'm only intended to answer healthcare questions covered by our pregnancy, prenatal-care, and child-nutrition documents. Please ask something in that medical scope, or contact a clinician for personal advice."
+	GreetingAnswer = "Hello! I'm the your medical assistant. Ask me anything about medical stuff I will try to answer you."
+	IdentityAnswer = "I'm a knowledge-base assistant for this clinic app. I answer from my clinic knowledge-base that i have — I don't diagnose or prescribe. For personal medical advice, please speak with a clinician."
 )
 
 // FallbackReply is used only when the chat model is unavailable for a conversational turn.
 func FallbackReply(kind Kind) string {
-	switch kind {
-	case KindIdentity:
+	if kind == KindIdentity {
 		return IdentityAnswer
-	case KindOffTopic:
-		return OffTopicAnswer
-	default:
-		return GreetingAnswer
 	}
+	return GreetingAnswer
 }
 
-// Classify routes short chitchat away from RAG and keeps medical questions on the retrieval path.
+// Classify detects short chitchat. Any substantive question returns KindKnowledge
+// so the pipeline always retrieves from the uploaded knowledge base.
 func Classify(question string) Kind {
 	q := normalize(question)
 	if q == "" {
@@ -61,7 +65,7 @@ func Classify(question string) Kind {
 	if _, ok := greetingExact[q]; ok {
 		return KindGreeting
 	}
-	// "hi!" / "hello?"
+
 	trimmedPunct := strings.TrimRightFunc(q, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r) && !unicode.IsSpace(r)
 	})
@@ -75,26 +79,13 @@ func Classify(question string) Kind {
 		}
 	}
 
-	for _, re := range identityPatterns {
-		if re.MatchString(q) {
+	for _, pattern := range identityExact {
+		if q == pattern || strings.TrimRight(q, "?") == pattern {
 			return KindIdentity
 		}
 	}
 
-	if medicalTerms.MatchString(q) {
-		return KindMedical
-	}
-
-	// Very short non-medical prompts (thanks, ok) stay conversational.
-	words := strings.Fields(q)
-	if len(words) <= 3 {
-		switch q {
-		case "thanks", "thank you", "thx", "ok", "okay", "bye", "goodbye", "see you":
-			return KindGreeting
-		}
-	}
-
-	return KindOffTopic
+	return KindKnowledge
 }
 
 func normalize(s string) string {

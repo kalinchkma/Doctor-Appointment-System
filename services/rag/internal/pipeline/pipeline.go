@@ -18,7 +18,7 @@ import (
 	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
 )
 
-const FallbackAnswer = "I don't have enough information in the available healthcare documents to answer that question. The question has been submitted for review."
+const FallbackAnswer = "I don't have enough information in the uploaded knowledge documents to answer that question. The question has been submitted for review."
 
 type SyncRequest struct {
 	DocumentID string `json:"documentId"`
@@ -89,6 +89,12 @@ func (p *Pipeline) IngestURL(ctx context.Context, req SyncRequest) error {
 }
 
 func (p *Pipeline) IngestBytes(ctx context.Context, req SyncRequest, data []byte) error {
+	slog.Info("extracting pdf",
+		"documentId", req.DocumentID,
+		"bytes", len(data),
+		"title", req.Title,
+	)
+
 	pages, err := ingestion.ExtractPDF(data)
 	if err != nil {
 		return err
@@ -100,9 +106,23 @@ func (p *Pipeline) IngestBytes(ctx context.Context, req SyncRequest, data []byte
 	}
 
 	texts := make([]string, len(parts))
+	totalChars := 0
 	for i, part := range parts {
 		texts[i] = part.Text
+		totalChars += len(part.Text)
 	}
+
+	preview := texts[0]
+	if len(preview) > 160 {
+		preview = preview[:160] + "…"
+	}
+	slog.Info("pdf text ready for embedding",
+		"documentId", req.DocumentID,
+		"pages", len(pages),
+		"chunks", len(parts),
+		"chars", totalChars,
+		"preview", preview,
+	)
 
 	vectors, err := p.embedTexts(ctx, texts, "document")
 	if err != nil {
@@ -132,7 +152,12 @@ func (p *Pipeline) IngestBytes(ctx context.Context, req SyncRequest, data []byte
 		return err
 	}
 
-	slog.Info("ingested document", "documentId", req.DocumentID, "chunks", len(chunks), "version", req.Version)
+	slog.Info("ingested document",
+		"documentId", req.DocumentID,
+		"chunks", len(chunks),
+		"version", req.Version,
+		"embeddingDim", len(vectors[0]),
+	)
 	return nil
 }
 
@@ -147,7 +172,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 	}
 
 	switch kind := intent.Classify(question); kind {
-	case intent.KindGreeting, intent.KindIdentity, intent.KindOffTopic:
+	case intent.KindGreeting, intent.KindIdentity:
 		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
 		return p.converse(ctx, kind, question)
 	}
@@ -157,7 +182,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		return ChatResult{}, fmt.Errorf("embed question: %w", err)
 	}
 
-	hits, err := p.store.Search(ctx, vectors[0], 8)
+	hits, err := p.store.Search(ctx, vectors[0], 12)
 	if err != nil {
 		return ChatResult{}, err
 	}
@@ -167,7 +192,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 
 	if !decision.Pass && (decision.Reason == relevance.ReasonNoResults || decision.Reason == relevance.ReasonBelowThreshold) {
 		if searcher, ok := p.store.(lexicalSearcher); ok {
-			lex, lexErr := searcher.SearchLexical(ctx, question, 8)
+			lex, lexErr := searcher.SearchLexical(ctx, question, 12)
 			if lexErr != nil {
 				slog.Warn("lexical search failed", "error", lexErr)
 			} else if len(lex) > 0 {
@@ -275,9 +300,8 @@ func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question stri
 		answer = intent.FallbackReply(kind)
 	}
 
-	sufficient := kind != intent.KindOffTopic
 	return ChatResult{
-		Sufficient: sufficient,
+		Sufficient: true,
 		Answer:     answer,
 		Reason:     string(kind),
 		Confidence: 1,

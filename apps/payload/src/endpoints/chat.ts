@@ -128,8 +128,8 @@ async function recordUnresolved(
 }
 
 function shouldRecordUnresolved(reason?: string): boolean {
-  // Chitchat / off-topic redirects are intentional, not missing medical coverage.
-  return reason !== 'greeting' && reason !== 'identity' && reason !== 'off_topic'
+  // Pure greetings / identity are intentional, not missing knowledge coverage.
+  return reason !== 'greeting' && reason !== 'identity'
 }
 
 export const chatEndpoints: Endpoint[] = [chatEndpoint]

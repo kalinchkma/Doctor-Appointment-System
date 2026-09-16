@@ -15,18 +15,25 @@ import (
 )
 
 type Server struct {
-	pipe    *pipeline.Pipeline
-	secret  string
-	slots   chan struct{}
-	timeout time.Duration
+	pipe          *pipeline.Pipeline
+	secret        string
+	slots         chan struct{}
+	chatTimeout   time.Duration
+	ingestTimeout time.Duration
 }
 
 func New(cfg config.Config, pipe *pipeline.Pipeline) http.Handler {
+	ingestSec := cfg.IngestTimeoutSec
+	if ingestSec < 60 {
+		ingestSec = 60
+	}
+
 	s := &Server{
-		pipe:    pipe,
-		secret:  cfg.InternalSecret,
-		slots:   make(chan struct{}, cfg.MaxConcurrency),
-		timeout: time.Duration(cfg.ChatTimeoutSec) * time.Second,
+		pipe:          pipe,
+		secret:        cfg.InternalSecret,
+		slots:         make(chan struct{}, cfg.MaxConcurrency),
+		chatTimeout:   time.Duration(cfg.ChatTimeoutSec) * time.Second,
+		ingestTimeout: time.Duration(ingestSec) * time.Second,
 	}
 
 	mux := http.NewServeMux()
@@ -53,17 +60,31 @@ func (s *Server) syncDocument(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), s.ingestTimeout)
 		defer cancel()
+
+		slog.Info("ingest started",
+			"documentId", req.DocumentID,
+			"title", req.Title,
+			"timeout", s.ingestTimeout.String(),
+		)
+
 		if err := s.pipe.IngestURL(ctx, req); err != nil {
 			slog.Error("ingest failed", "documentId", req.DocumentID, "error", err)
-			s.pipe.ReportStatus(ctx, req.DocumentID, "failed", safeError(err))
+			// Detach from the ingest deadline so Payload still learns the failure.
+			s.reportStatusDetached(req.DocumentID, "failed", safeError(err))
 			return
 		}
-		s.pipe.ReportStatus(ctx, req.DocumentID, "indexed", "")
+		s.reportStatusDetached(req.DocumentID, "indexed", "")
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
+func (s *Server) reportStatusDetached(documentID, status, indexError string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	s.pipe.ReportStatus(ctx, documentID, status, indexError)
 }
 
 func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +102,7 @@ func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), s.timeout)
+	ctx, cancel := context.WithTimeout(r.Context(), s.chatTimeout)
 	defer cancel()
 
 	select {

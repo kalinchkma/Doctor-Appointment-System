@@ -12,7 +12,7 @@ export const RagSettings: GlobalConfig = {
   label: 'RAG Settings',
   admin: {
     description:
-      'Choose the chat and embedding providers the healthcare assistant uses. Keys stay in Payload. The Go service only calls this CMS. Switching provider fills one example chat model and one example embedding model.',
+      'Choose the chat and embedding providers the knowledge assistant uses. Keys stay in Payload. The Go service only calls this CMS. Answers come from documents uploaded under Knowledge Files / Knowledge Documents.',
     group: 'RAG',
   },
   access: { read: admins, update: admins },
