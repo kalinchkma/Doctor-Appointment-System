@@ -57,9 +57,12 @@ function providerBaseUrl(
     }
   }
   if (provider === 'google') {
-    // Admins sometimes paste the full generateContent URL; keep only the API root.
+    // Admins sometimes paste full method URLs; keep only the API root.
+    // Correct base: https://generativelanguage.googleapis.com/v1beta
+    // Wrong examples: .../interactions, .../models/x:generateContent
     const stripped = value
-      .replace(/\/models\/[^/]+:(generateContent|batchEmbedContents|embedContent).*$/i, '')
+      .replace(/\/models\/[^/]+:(generateContent|streamGenerateContent|batchEmbedContents|embedContent).*$/i, '')
+      .replace(/\/interactions\/?$/i, '')
       .replace(/\/$/, '')
     return stripped || GOOGLE_API
   }
@@ -136,7 +139,17 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
   const text = await response.text()
   if (!response.ok) {
     const detail = text.replace(/\s+/g, ' ').slice(0, 240)
-    throw new Error(`provider ${response.status}${detail ? `: ${detail}` : ''}`)
+    const path = (() => {
+      try {
+        const parsed = new URL(url)
+        return `${parsed.origin}${parsed.pathname}`
+      } catch {
+        return url.slice(0, 120)
+      }
+    })()
+    throw new Error(
+      `provider ${response.status} at ${path}${detail ? `: ${detail}` : ' (empty body — often a bad model id, wrong base URL, or missing/invalid API key)'}`,
+    )
   }
   return text ? (JSON.parse(text) as Record<string, unknown>) : {}
 }
@@ -206,7 +219,7 @@ async function embedOllama(settings: RagRuntimeSettings, texts: string[]): Promi
   const headers = { Authorization: `Bearer ${settings.embedApiKey || 'ollama'}` }
 
   try {
-    const parsed = await postJson(`${origin}/api/embed`, headers, { model: settings.embedModel, input: texts }, 60_000)
+    const parsed = await postJson(`${origin}/api/embed`, headers, { model: settings.embedModel, input: texts }, 180_000)
     const embeddings = nativeOllamaEmbeddings(parsed)
     if (embeddings.length === texts.length && embeddings.every((vec) => vec?.length)) {
       return embeddings.map(l2Normalize)
@@ -216,7 +229,7 @@ async function embedOllama(settings: RagRuntimeSettings, texts: string[]): Promi
   }
 
   const { url, headers: compatHeaders } = embedEndpoint(settings)
-  const parsed = await postJson(url, compatHeaders, { model: settings.embedModel, input: texts }, 60_000)
+  const parsed = await postJson(url, compatHeaders, { model: settings.embedModel, input: texts }, 180_000)
   return parseOpenAIEmbeddingData(parsed.data, texts.length).map(l2Normalize)
 }
 
@@ -231,7 +244,9 @@ export async function proxyEmbeddings(
 
   if (settings.embedProvider === 'google') {
     if (!settings.embedApiKey?.trim()) {
-      throw new Error('Google embedding API key is missing in RAG Settings')
+      throw new Error(
+        'Google embedding API key is missing in RAG Settings. Add a Gemini API key, or switch Embed provider to Ollama (nomic-embed-text).',
+      )
     }
     const model = resolveGoogleEmbedModel(settings.embedModel)
     const dims = settings.embedDimensions || 768
@@ -302,12 +317,12 @@ export async function proxyCompletion(
       headers,
       {
         model: settings.chatModel,
-        max_tokens: 1024,
+        max_tokens: mode === 'json' ? 400 : 512,
         temperature,
         system,
         messages: [{ role: 'user', content: user }],
       },
-      90_000,
+      120_000,
     )
     const content = parsed.content as { text?: string }[] | undefined
     const text = content?.find((part) => part.text)?.text
@@ -325,11 +340,11 @@ export async function proxyCompletion(
         contents: [{ role: 'user', parts: [{ text: user }] }],
         generationConfig: {
           temperature,
-          maxOutputTokens: 1024,
+          maxOutputTokens: mode === 'json' ? 400 : 512,
           ...(wantJson ? { responseMimeType: 'application/json' } : {}),
         },
       },
-      90_000,
+      120_000,
     )
     const candidates = parsed.candidates as
       | { content?: { parts?: { text?: string }[] } }[]
@@ -347,13 +362,16 @@ export async function proxyCompletion(
     settings.chatProvider === 'ollama' &&
     /deepseek-r1|deepseek-reasoner/i.test(settings.chatModel)
 
+  // Short answers: cap tokens so local models finish quickly instead of rambling.
+  const maxTokens = isDeepSeekReasoner ? 500 : mode === 'json' ? 350 : 400
+
   const parsed = await postJson(
     url,
     headers,
     {
       model: settings.chatModel,
       temperature,
-      max_tokens: isDeepSeekReasoner ? 700 : 1024,
+      max_tokens: maxTokens,
       ...(wantJson && supportsJsonObjectMode(settings) ? { response_format: { type: 'json_object' } } : {}),
       ...(isDeepSeekReasoner ? { think: false } : {}),
       messages: [
@@ -361,7 +379,7 @@ export async function proxyCompletion(
         { role: 'user', content: user },
       ],
     },
-    isDeepSeekReasoner ? 120_000 : 90_000,
+    isDeepSeekReasoner ? 150_000 : 120_000,
   )
   const choices = parsed.choices as { message?: { content?: string } }[] | undefined
   let text = choices?.[0]?.message?.content

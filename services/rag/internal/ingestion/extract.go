@@ -16,10 +16,13 @@ func ExtractPDF(data []byte) ([]string, error) {
 		return nil, fmt.Errorf("open pdf: %w", err)
 	}
 
-	pages := make([]string, 0, reader.NumPage())
-	for i := 1; i <= reader.NumPage(); i++ {
+	totalPages := reader.NumPage()
+	pages := make([]string, 0, totalPages)
+	skippedEmpty := 0
+	for i := 1; i <= totalPages; i++ {
 		page := reader.Page(i)
 		if page.V.IsNull() {
+			skippedEmpty++
 			continue
 		}
 		raw, err := page.GetPlainText(nil)
@@ -28,13 +31,18 @@ func ExtractPDF(data []byte) ([]string, error) {
 		}
 		cleaned := CleanPage(raw)
 		if AlmostEmpty(cleaned) {
+			skippedEmpty++
 			continue
 		}
 		pages = append(pages, cleaned)
 	}
 
 	if len(pages) == 0 {
-		return nil, fmt.Errorf("pdf contained no extractable text")
+		return nil, fmt.Errorf(
+			"pdf contained no extractable text (%d pages scanned, %d empty/image-only) — scanned/image-only PDFs need OCR before upload",
+			totalPages,
+			skippedEmpty,
+		)
 	}
 	return pages, nil
 }

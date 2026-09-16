@@ -28,7 +28,7 @@ func NewProxy(payloadURL, secret string, dimensions int) *Proxy {
 		baseURL:    strings.TrimRight(payloadURL, "/"),
 		secret:     secret,
 		dimensions: dimensions,
-		http:       &http.Client{Timeout: 180 * time.Second},
+		http:       &http.Client{Timeout: 240 * time.Second},
 		maxRetries: 3,
 	}
 }
@@ -90,16 +90,21 @@ func (p *Proxy) EmbedTask(ctx context.Context, texts []string, task string) ([][
 		task = "document"
 	}
 
-	const batch = 16
+	// Small batches keep each Payload→Ollama call under typical provider timeouts
+	// when indexing multi-megabyte PDFs with hundreds of chunks.
+	const batch = 8
 	out := make([][]float32, len(texts))
 	for start := 0; start < len(texts); start += batch {
 		end := start + batch
 		if end > len(texts) {
 			end = len(texts)
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("embed cancelled after %d/%d texts: %w", start, len(texts), err)
+		}
 		chunk, err := p.embedBatch(ctx, texts[start:end], task)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("embed batch %d-%d of %d: %w", start+1, end, len(texts), err)
 		}
 		copy(out[start:end], chunk)
 	}

@@ -82,8 +82,23 @@ export const internalRagEndpoints: Endpoint[] = [
           data: vectors.map((embedding, index) => ({ index, embedding })),
         })
       } catch (error) {
-        req.payload.logger.error({ err: error }, 'embedding proxy failed')
-        return json({ error: 'The embedding provider is unavailable.' }, 502)
+        const settings = await loadRagSettings(req.payload).catch(() => null)
+        req.payload.logger.error(
+          {
+            err: error,
+            embedProvider: settings?.embedProvider,
+            embedModel: settings?.embedModel,
+            embedBaseUrl: settings?.embedBaseUrl || '(default)',
+          },
+          'embedding proxy failed',
+        )
+        return json(
+          {
+            error: 'The embedding provider is unavailable.',
+            detail: error instanceof Error ? error.message : 'unknown error',
+          },
+          502,
+        )
       }
     },
   },

@@ -123,6 +123,8 @@ export function Chat() {
               className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
             >
               <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
+              {/**
+               * 
               {message.author === 'assistant' && (message.topScore ?? 0) > 0 && (
                 <p className="chat-meta">
                   {(message.confidence ?? 0) > 0
@@ -132,6 +134,8 @@ export function Chat() {
                   {`Similarity ${Math.round((message.topScore ?? 0) * 100)}%`}
                 </p>
               )}
+               */}
+             { /**
               {message.sources && message.sources.length > 0 && (
                 <ul className="sources">
                   {message.sources.map((source, index) => (
@@ -145,6 +149,7 @@ export function Chat() {
                   ))}
                 </ul>
               )}
+               */}
             </div>
           ))}
           {thinking && (

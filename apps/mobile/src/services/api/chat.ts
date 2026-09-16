@@ -5,9 +5,9 @@ import { get, post } from './client'
  * The mobile app only ever talks to Payload. The RAG service, the vector store, and the
  * LLM credentials stay behind that boundary (ADR-006, ADR-017).
  */
-/** Chat can wait on retrieval + LLM; abort before the UI spinner hangs forever. */
+/** Chat waits on retrieval + LLM; keep above Payload's askRag budget (~200s). */
 export const askChatbot = (question: string) =>
-  post<ChatReply>('/api/chat', { question }, { timeoutMs: 90_000 })
+  post<ChatReply>('/api/chat', { question }, { timeoutMs: 210_000 })
 
 type SuggestedList = {
   docs: ChatSuggestedQuestion[]

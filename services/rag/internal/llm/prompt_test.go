@@ -39,6 +39,37 @@ func TestBuildUserPromptFencesInjection(t *testing.T) {
 	}
 }
 
+func TestLimitContextChunksCapsPromptSize(t *testing.T) {
+	chunks := make([]vectorstore.ScoredChunk, 8)
+	for i := range chunks {
+		chunks[i] = vectorstore.ScoredChunk{
+			Chunk: vectorstore.Chunk{ID: string(rune('a' + i)), Text: "passage"},
+			Score: 1 - float64(i)*0.01,
+		}
+	}
+	limited := LimitContextChunks(chunks)
+	if len(limited) != MaxContextChunks {
+		t.Fatalf("got %d chunks, want %d", len(limited), MaxContextChunks)
+	}
+	prompt := BuildUserPrompt("rules?", chunks)
+	if strings.Contains(prompt, "id=e") {
+		t.Fatalf("prompt should only include top chunks: %s", prompt)
+	}
+}
+
+func TestBuildUserPromptTrimsLongPassages(t *testing.T) {
+	long := strings.Repeat("word ", 400)
+	prompt := BuildUserPrompt("q", []vectorstore.ScoredChunk{{
+		Chunk: vectorstore.Chunk{ID: "long", Text: long},
+	}})
+	if strings.Count(prompt, "word") >= 400 {
+		t.Fatalf("passage should be trimmed in the prompt")
+	}
+	if !strings.Contains(prompt, "...") {
+		t.Fatalf("trimmed passage should mark ellipsis")
+	}
+}
+
 func TestParseGenerationMalformedIsInsufficient(t *testing.T) {
 	if _, ok := ParseGeneration("not json at all"); ok {
 		t.Fatal("malformed JSON must not parse as success")

@@ -59,7 +59,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default. For Ollama use http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full .../generateContent URL here.',
+              'Leave blank for the provider default. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.',
           },
         },
         {

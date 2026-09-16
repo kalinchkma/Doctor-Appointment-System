@@ -46,6 +46,8 @@ export async function deleteDocument(documentId: string): Promise<void> {
 }
 
 export async function askRag(question: string, requestId?: string): Promise<RagChatResult> {
+  // Must stay above the Go RAG chat budget (RAG_CHAT_TIMEOUT_SEC, default 180s).
+  // Aborting earlier cancels the Go request mid-generate ("context canceled").
   const response = await ragFetch(
     '/internal/v1/chat',
     {
@@ -53,7 +55,7 @@ export async function askRag(question: string, requestId?: string): Promise<RagC
       body: JSON.stringify({ question }),
       headers: requestId ? { 'X-Request-Id': requestId } : {},
     },
-    90_000,
+    200_000,
   )
 
   if (response.status === 502 || response.status === 504) {

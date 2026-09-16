@@ -67,7 +67,7 @@ func New(cfg config.Config, store ChunkStore, embedder llm.Embedder, generate ll
 		store:    store,
 		embedder: embedder,
 		generate: generate,
-		http:     &http.Client{Timeout: 30 * time.Second},
+		http:     &http.Client{Timeout: 120 * time.Second},
 		secret:   cfg.InternalSecret,
 		callback: callback,
 	}
@@ -182,7 +182,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		return ChatResult{}, fmt.Errorf("embed question: %w", err)
 	}
 
-	hits, err := p.store.Search(ctx, vectors[0], 12)
+	hits, err := p.store.Search(ctx, vectors[0], 8)
 	if err != nil {
 		return ChatResult{}, err
 	}
@@ -192,7 +192,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 
 	if !decision.Pass && (decision.Reason == relevance.ReasonNoResults || decision.Reason == relevance.ReasonBelowThreshold) {
 		if searcher, ok := p.store.(lexicalSearcher); ok {
-			lex, lexErr := searcher.SearchLexical(ctx, question, 12)
+			lex, lexErr := searcher.SearchLexical(ctx, question, 8)
 			if lexErr != nil {
 				slog.Warn("lexical search failed", "error", lexErr)
 			} else if len(lex) > 0 {
@@ -209,6 +209,8 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 			}
 		}
 	}
+
+	decision.Kept = llm.LimitContextChunks(decision.Kept)
 
 	slog.Info("chat retrieval",
 		"question", truncate(question, 120),
@@ -233,10 +235,21 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 		}, nil
 	}
 
+	genStarted := time.Now()
 	raw, err := p.generate.Generate(ctx, llm.SystemPrompt, llm.BuildUserPrompt(question, decision.Kept))
 	if err != nil {
+		slog.Error("chat generate failed",
+			"error", err,
+			"elapsedMs", time.Since(genStarted).Milliseconds(),
+			"contextChunks", len(decision.Kept),
+		)
 		return ChatResult{}, fmt.Errorf("generate: %w", err)
 	}
+	slog.Info("chat generate done",
+		"elapsedMs", time.Since(genStarted).Milliseconds(),
+		"rawLen", len(raw),
+		"contextChunks", len(decision.Kept),
+	)
 
 	parsed, ok := llm.ParseGeneration(raw)
 	if !ok || !parsed.Sufficient || strings.TrimSpace(parsed.Answer) == "" {
