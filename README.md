@@ -175,6 +175,12 @@ pnpm --filter @doctor-app/mobile run:android
 
 Build the debug APK:
 
+Install java 
+```bash
+sudo apt update
+sudo apt install openjdk-21-jdk
+```
+
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 (cd apps/mobile/android && ./gradlew assembleDebug)

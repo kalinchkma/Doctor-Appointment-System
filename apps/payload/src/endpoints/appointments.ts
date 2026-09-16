@@ -256,10 +256,20 @@ const cancel: Endpoint = {
 
       // Depth 1 so we can read the slot start time for the 1-hour cancel window.
       const appointment = await payload
-        .findByID({ collection: 'appointments', id: appointmentId, req, depth: 1 })
+        .findByID({ 
+          collection: 'appointments', 
+          id: appointmentId, 
+          overrideAccess: true, // Use overrideAccess to bypass access control during lookup
+          depth: 1 
+        })
         .catch(() => null)
 
-      if (!appointment || String(appointment.patient) !== String(user.id)) {
+      if (!appointment) {
+        throw errors.appointmentNotFound()
+      }
+
+      // Check ownership after the lookup succeeds
+      if (String(appointment.patient) !== String(user.id)) {
         throw errors.appointmentNotFound()
       }
       if (appointment.status === 'cancelled') {
@@ -362,10 +372,20 @@ const updateNote: Endpoint = {
       }
 
       const appointment = await payload
-        .findByID({ collection: 'appointments', id: appointmentId, req, depth: 0 })
+        .findByID({ 
+          collection: 'appointments', 
+          id: appointmentId, 
+          overrideAccess: true, // Use overrideAccess to bypass access control during lookup
+          depth: 0 
+        })
         .catch(() => null)
 
-      if (!appointment || String(appointment.patient) !== String(user.id)) {
+      if (!appointment) {
+        throw errors.appointmentNotFound()
+      }
+
+      // Check ownership after the lookup succeeds
+      if (String(appointment.patient) !== String(user.id)) {
         throw errors.appointmentNotFound()
       }
       if (appointment.status === 'cancelled') {

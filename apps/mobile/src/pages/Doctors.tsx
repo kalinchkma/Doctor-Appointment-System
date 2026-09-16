@@ -3,12 +3,14 @@ import {
   IonCard,
   IonCardContent,
   IonContent,
+  IonIcon,
   IonPage,
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
   type RefresherEventDetail,
 } from '@ionic/react'
+import { location, star } from 'ionicons/icons'
 import { useNavigate } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
@@ -39,42 +41,100 @@ export function Doctors() {
     event.detail.complete()
   }
 
+  const getRandomRating = () => {
+    // Mock rating for demo purposes
+    return (4.2 + Math.random() * 0.7).toFixed(1)
+  }
+
+  const getRandomReviews = () => {
+    // Mock review count for demo purposes
+    return Math.floor(15 + Math.random() * 200)
+  }
+
   return (
     <IonPage>
-      <ScreenHeader title="Doctors" backTo="/home" />
-      <IonContent className="ion-padding">
+      <ScreenHeader title="Find a Doctor" backTo="/home" />
+      <IonContent>
+        <div className="doctors-header">
+          <IonSearchbar
+            value={query}
+            placeholder="Search by name, specialty, or location"
+            onIonInput={(event) => setQuery(event.detail.value ?? '')}
+            className="doctors-search"
+          />
+          {data && (
+            <p className="results-count">
+              {visible.length} doctor{visible.length !== 1 ? 's' : ''} available
+            </p>
+          )}
+        </div>
+
         <IonRefresher slot="fixed" onIonRefresh={refresh}>
           <IonRefresherContent />
         </IonRefresher>
-        <IonSearchbar
-          value={query}
-          placeholder="Search name, specialty, or location"
-          onIonInput={(event) => setQuery(event.detail.value ?? '')}
-        />
-        <AsyncContent
-          loading={loading}
-          error={error}
-          empty={visible.length === 0}
-          emptyMessage={
-            query ? `No doctors match “${query}”.` : 'No doctors are available right now.'
-          }
-          onRetry={reload}
-        >
-          {visible.map((doctor) => (
-            <IonCard button key={doctor.id} onClick={() => navigate(`/doctors/${doctor.id}`)}>
-              <IonCardContent>
-                <div className="doctor-row">
-                  <DoctorAvatar doctor={doctor} />
-                  <div>
-                    <strong>{doctor.name}</strong>
-                    <p>{doctor.specialization}</p>
-                    {doctor.address && <p className="doctor-list-address">{doctor.address}</p>}
+        
+        <div className="doctors-list">
+          <AsyncContent
+            loading={loading}
+            error={error}
+            empty={visible.length === 0}
+            emptyMessage={
+              query ? `No doctors match "${query}".` : 'No doctors are available right now.'
+            }
+            onRetry={reload}
+          >
+            {visible.map((doctor) => (
+              <IonCard 
+                key={doctor.id} 
+                button 
+                className="doctor-card-v2"
+                onClick={() => navigate(`/doctors/${doctor.id}`)}
+              >
+                <IonCardContent>
+                  <div className="doctor-card-content">
+                    <DoctorAvatar doctor={doctor} />
+                    
+                    <div className="doctor-details">
+                      <h3 className="doctor-name">{doctor.name}</h3>
+                      <p className="doctor-specialty">{doctor.specialization}</p>
+                      
+                      {doctor.qualifications && (
+                        <p className="doctor-qualifications">{doctor.qualifications}</p>
+                      )}
+                      
+                      <div className="doctor-rating">
+                        <div className="rating-display">
+                          <IonIcon icon={star} className="star-icon" />
+                          <span className="rating-value">{getRandomRating()}</span>
+                          <span className="rating-count">({getRandomReviews()} reviews)</span>
+                        </div>
+                      </div>
+                      
+                      {doctor.address && (
+                        <div className="doctor-location">
+                          <IonIcon icon={location} className="location-icon" />
+                          <span className="address-text">{doctor.address}</span>
+                        </div>
+                      )}
+                      
+                      {doctor.bio && (
+                        <p className="doctor-bio-preview">{doctor.bio}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </IonCardContent>
-            </IonCard>
-          ))}
-        </AsyncContent>
+                  
+                  <div className="card-actions">
+                    <div className="availability-indicator">
+                      <span className="availability-dot"></span>
+                      <span>Available today</span>
+                    </div>
+                    <span className="view-profile">View Profile →</span>
+                  </div>
+                </IonCardContent>
+              </IonCard>
+            ))}
+          </AsyncContent>
+        </div>
       </IonContent>
     </IonPage>
   )

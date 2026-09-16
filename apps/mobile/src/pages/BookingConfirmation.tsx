@@ -1,8 +1,17 @@
 import { useCallback } from 'react'
 import { IonButton, IonContent, IonIcon, IonPage } from '@ionic/react'
-import { checkmarkCircle } from 'ionicons/icons'
+import { 
+  checkmarkCircle, 
+  calendar, 
+  person, 
+  location, 
+  chatbubble,
+  home,
+  list
+} from 'ionicons/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
+import { DoctorAvatar } from '../components/DoctorAvatar'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { useAsync } from '../hooks/useAsync'
 import { getAppointment } from '../services/api/appointments'
@@ -26,43 +35,121 @@ export function BookingConfirmation() {
 
   return (
     <IonPage>
-      <ScreenHeader title="Booking confirmed" backTo="/home" />
-      <IonContent className="ion-padding">
+      <ScreenHeader title="Booking Confirmed" backTo="/home" />
+      <IonContent>
         <AsyncContent loading={loading} error={error} onRetry={reload}>
-          <div className="confirmation">
-            <IonIcon icon={checkmarkCircle} color="primary" className="confirmation-icon" />
-            <h1>You are booked</h1>
-            {doctor && <p className="specialty">{doctor.name}</p>}
-            {slot && <p className="confirmation-time">{formatDateTime(slot.startsAt)}</p>}
-            {appointment?.patientNote && (
-              <p className="confirmation-note">Request saved: “{appointment.patientNote}”</p>
-            )}
-            <p className="intro">
-              We have reserved this time for you. Open the appointment to see the clinic location
-              and any messages from the doctor.
-            </p>
+          <div className="confirmation-v2">
+            <div className="success-animation">
+              <IonIcon icon={checkmarkCircle} color="success" className="success-icon" />
+            </div>
+            
+            <div className="success-content">
+              <h1>Appointment Confirmed!</h1>
+              <p className="success-message">
+                Your appointment has been successfully booked. You'll receive a confirmation message shortly.
+              </p>
+            </div>
+
+            <div className="confirmation-card-v2">
+              {doctor && (
+                <div className="doctor-section">
+                  <DoctorAvatar doctor={doctor} />
+                  <div className="doctor-info">
+                    <h3>{doctor.name}</h3>
+                    <p className="specialty">{doctor.specialization}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="appointment-info">
+                {slot && (
+                  <div className="info-row highlight">
+                    <div className="info-icon-wrapper primary">
+                      <IonIcon icon={calendar} />
+                    </div>
+                    <div className="info-content">
+                      <span className="info-label">Date & Time</span>
+                      <span className="info-value">{formatDateTime(slot.startsAt)}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="info-row">
+                  <div className="info-icon-wrapper">
+                    <IonIcon icon={person} />
+                  </div>
+                  <div className="info-content">
+                    <span className="info-label">Patient</span>
+                    <span className="info-value">{appointment?.contactName}</span>
+                  </div>
+                </div>
+
+                {doctor?.address && (
+                  <div className="info-row">
+                    <div className="info-icon-wrapper">
+                      <IonIcon icon={location} />
+                    </div>
+                    <div className="info-content">
+                      <span className="info-label">Location</span>
+                      <span className="info-value">{doctor.address}</span>
+                    </div>
+                  </div>
+                )}
+
+                {appointment?.patientNote && (
+                  <div className="info-row">
+                    <div className="info-icon-wrapper">
+                      <IonIcon icon={chatbubble} />
+                    </div>
+                    <div className="info-content">
+                      <span className="info-label">Your Note</span>
+                      <span className="info-value note">"{appointment.patientNote}"</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="next-steps">
+              <h3>What's Next?</h3>
+              <ul className="steps-list">
+                <li>Check your email for appointment details</li>
+                <li>Arrive 15 minutes early for check-in</li>
+                <li>Bring valid ID and insurance cards</li>
+                <li>You can cancel up to 1 hour before your appointment</li>
+              </ul>
+            </div>
+
+            <div className="action-buttons">
+              <IonButton
+                expand="block"
+                onClick={() => navigate(`/appointments/${appointmentId}`, { replace: true })}
+                className="primary-action"
+              >
+                View Full Details
+              </IonButton>
+              
+              <div className="secondary-actions">
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  onClick={() => navigate('/appointments', { replace: true })}
+                >
+                  <IonIcon icon={list} slot="start" />
+                  My Appointments
+                </IonButton>
+                
+                <IonButton
+                  expand="block"
+                  fill="clear"
+                  onClick={() => navigate('/home', { replace: true })}
+                >
+                  <IonIcon icon={home} slot="start" />
+                  Back to Home
+                </IonButton>
+              </div>
+            </div>
           </div>
-          <IonButton
-            expand="block"
-            className="submit"
-            onClick={() => navigate(`/appointments/${appointmentId}`, { replace: true })}
-          >
-            View appointment details
-          </IonButton>
-          <IonButton
-            expand="block"
-            fill="outline"
-            onClick={() => navigate('/appointments', { replace: true })}
-          >
-            My appointments
-          </IonButton>
-          <IonButton
-            expand="block"
-            fill="clear"
-            onClick={() => navigate('/home', { replace: true })}
-          >
-            Back to home
-          </IonButton>
         </AsyncContent>
       </IonContent>
     </IonPage>
