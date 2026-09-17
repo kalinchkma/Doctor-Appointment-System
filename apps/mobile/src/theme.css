@@ -35,6 +35,66 @@
   margin: 8px 0 0;
 }
 
+.server-status {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eef4f2;
+  border: 1px solid #d7e4e0;
+}
+
+.server-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.server-status-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.server-status-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dfe8e5;
+  color: #526660;
+}
+
+.server-status-pill.is-online {
+  background: color-mix(in srgb, var(--ion-color-success) 22%, white);
+  color: var(--ion-color-success-shade, #1b8f4a);
+}
+
+.server-status-pill.is-offline {
+  background: color-mix(in srgb, var(--ion-color-danger) 18%, white);
+  color: var(--ion-color-danger-shade, #a33939);
+}
+
+.server-status-pill.is-checking {
+  background: #e4ebe8;
+  color: #64736f;
+}
+
+.server-status-url {
+  display: block;
+  font-size: 0.82rem;
+  word-break: break-all;
+  color: var(--app-ink);
+}
+
+.server-status-detail {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: var(--app-muted);
+}
+
 .auth-shell ion-card {
   margin: 0;
   border-radius: 16px;
@@ -118,6 +178,23 @@
   display: grid;
   gap: 12px;
   margin-top: 24px;
+}
+
+/* Persistent bottom navigation */
+.app-tab-bar {
+  --background: #ffffff;
+  --border: 1px solid #e4ebe8;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.app-tab-bar ion-tab-button {
+  --color: #6b7c77;
+  --color-selected: var(--ion-color-primary);
+  font-weight: 600;
+}
+
+.app-tab-bar.is-hidden {
+  display: none;
 }
 
 /* Shared loading, error, and empty presentation from AsyncContent. */
@@ -655,12 +732,120 @@
   font-weight: 600;
 }
 
+.availability-indicator.is-unavailable {
+  color: var(--ion-color-medium);
+}
+
 .availability-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--ion-color-success);
   animation: pulse 2s infinite;
+}
+
+.availability-indicator.is-unavailable .availability-dot {
+  background: var(--ion-color-medium);
+  animation: none;
+}
+
+.doctor-card-v2.unavailable-today {
+  opacity: 0.92;
+}
+
+.doctor-experience {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  color: var(--ion-color-medium-shade);
+  font-weight: 600;
+}
+
+.experience-line {
+  margin: 4px 0;
+  font-weight: 600;
+  color: var(--ion-color-dark);
+}
+
+.detail-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-weight: 600;
+}
+
+.availability-pill {
+  display: inline-flex;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ion-color-success) 16%, transparent);
+  color: var(--ion-color-success-shade);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.availability-pill.is-unavailable {
+  background: color-mix(in srgb, var(--ion-color-medium) 18%, transparent);
+  color: var(--ion-color-medium-shade);
+}
+
+.reviews-section .reviews-empty,
+.review-thanks {
+  color: var(--ion-color-medium-shade);
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #eef2f0;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.review-stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--ion-color-warning);
+}
+
+.review-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eef2f0;
+}
+
+.rating-picker {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+
+.rating-star-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  font-size: 1.6rem;
+  color: var(--ion-color-warning);
+  cursor: pointer;
 }
 
 @keyframes pulse {

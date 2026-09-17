@@ -7,6 +7,7 @@ import path from 'node:path'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Doctors } from './collections/Doctors'
+import { DoctorReviews } from './collections/DoctorReviews'
 import { AppointmentSlots } from './collections/AppointmentSlots'
 import { Appointments } from './collections/Appointments'
 import { KnowledgeFiles } from './collections/KnowledgeFiles'
@@ -36,7 +37,12 @@ const trustedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost',
+  // Capacitor Android WebView origin when androidScheme is "https".
+  'https://localhost',
   'capacitor://localhost',
+  // CapacitorHttp / some WebView builds omit or vary Origin; also allow ionic schemes.
+  'ionic://localhost',
+  'http://localhost:8080',
 ].filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index)
 
 export default buildConfig({
@@ -46,6 +52,7 @@ export default buildConfig({
     Users,
     Media,
     Doctors,
+    DoctorReviews,
     AppointmentSlots,
     Appointments,
     KnowledgeFiles,

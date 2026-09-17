@@ -20,6 +20,7 @@ import type { Payload } from 'payload'
 export async function ensureIndexes(payload: Payload): Promise<void> {
   const appointments = payload.db.collections['appointments']?.collection
   const slots = payload.db.collections['appointment-slots']?.collection
+  const reviews = payload.db.collections['doctor-reviews']?.collection
 
   if (!appointments || !slots) {
     payload.logger.error('ensureIndexes: expected collections are not registered')
@@ -41,6 +42,13 @@ export async function ensureIndexes(payload: Payload): Promise<void> {
   )
 
   await slots.createIndex({ doctor: 1, endsAt: 1 }, { name: 'doctor_endsAt' })
+
+  if (reviews) {
+    await reviews.createIndex(
+      { patient: 1, doctor: 1 },
+      { name: 'uniq_patient_doctor_review', unique: true },
+    )
+  }
 
   // Backfill endsAt for slots created before the overlap field existed.
   const missingEndsAt = await slots

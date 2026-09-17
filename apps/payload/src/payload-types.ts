@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     media: Media;
     doctors: Doctor;
+    'doctor-reviews': DoctorReview;
     'appointment-slots': AppointmentSlot;
     appointments: Appointment;
     'knowledge-files': KnowledgeFile;
@@ -86,6 +87,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     doctors: DoctorsSelect<false> | DoctorsSelect<true>;
+    'doctor-reviews': DoctorReviewsSelect<false> | DoctorReviewsSelect<true>;
     'appointment-slots': AppointmentSlotsSelect<false> | AppointmentSlotsSelect<true>;
     appointments: AppointmentsSelect<false> | AppointmentsSelect<true>;
     'knowledge-files': KnowledgeFilesSelect<false> | KnowledgeFilesSelect<true>;
@@ -203,6 +205,10 @@ export interface Doctor {
   name: string;
   specialization: string;
   qualifications?: string | null;
+  /**
+   * Years of clinical experience shown on the doctor profile. Set or update this when editing the doctor.
+   */
+  experienceYears?: number | null;
   photo?: (string | null) | Media;
   bio?: string | null;
   /**
@@ -218,6 +224,14 @@ export interface Doctor {
    */
   longitude?: number | null;
   /**
+   * Cached average from patient reviews (1–5). Updated automatically.
+   */
+  ratingAverage?: number | null;
+  /**
+   * Number of patient reviews. Updated automatically.
+   */
+  reviewCount?: number | null;
+  /**
    * Inactive doctors are hidden from the mobile application.
    */
   active?: boolean | null;
@@ -225,36 +239,31 @@ export interface Doctor {
   createdAt: string;
 }
 /**
- * Create a one-time slot, or a daily/weekday series that expands through the repeat-until date. Overlapping times for the same doctor are rejected.
+ * Patient ratings and comments for doctors after a visit.
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "appointment-slots".
+ * via the `definition` "doctor-reviews".
  */
-export interface AppointmentSlot {
+export interface DoctorReview {
   id: string;
+  patient: string | User;
+  /**
+   * Display name captured at submit time so reviews stay readable publicly.
+   */
+  patientName: string;
   doctor: string | Doctor;
   /**
-   * First occurrence for recurring slots; every generated day keeps this clock time.
+   * The past visit this review is tied to, when available.
    */
-  startsAt: string;
+  appointment?: (string | null) | Appointment;
   /**
-   * Computed from start time + duration. Used for overlap checks.
+   * 1 (poor) to 5 (excellent).
    */
-  endsAt: string;
-  durationMinutes: number;
-  status: 'available' | 'booked';
+  rating: number;
   /**
-   * Recurring choices create matching slots through the repeat-until date.
+   * Optional written feedback from the patient.
    */
-  scheduleType: 'once' | 'daily' | 'weekdays';
-  /**
-   * Inclusive end date for the series (required for daily/weekday schedules).
-   */
-  repeatUntil?: string | null;
-  /**
-   * Shared id for slots generated from one recurring create.
-   */
-  seriesId?: string | null;
+  comment?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -290,6 +299,40 @@ export interface Appointment {
    * Visible to the patient on their appointment details. Use for prep instructions, reminders, or notes from the clinic.
    */
   doctorComment?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Create a one-time slot, or a daily/weekday series that expands through the repeat-until date. Overlapping times for the same doctor are rejected.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "appointment-slots".
+ */
+export interface AppointmentSlot {
+  id: string;
+  doctor: string | Doctor;
+  /**
+   * First occurrence for recurring slots; every generated day keeps this clock time.
+   */
+  startsAt: string;
+  /**
+   * Computed from start time + duration. Used for overlap checks.
+   */
+  endsAt: string;
+  durationMinutes: number;
+  status: 'available' | 'booked';
+  /**
+   * Recurring choices create matching slots through the repeat-until date.
+   */
+  scheduleType: 'once' | 'daily' | 'weekdays';
+  /**
+   * Inclusive end date for the series (required for daily/weekday schedules).
+   */
+  repeatUntil?: string | null;
+  /**
+   * Shared id for slots generated from one recurring create.
+   */
+  seriesId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -417,6 +460,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'doctors';
         value: string | Doctor;
+      } | null)
+    | ({
+        relationTo: 'doctor-reviews';
+        value: string | DoctorReview;
       } | null)
     | ({
         relationTo: 'appointment-slots';
@@ -548,12 +595,29 @@ export interface DoctorsSelect<T extends boolean = true> {
   name?: T;
   specialization?: T;
   qualifications?: T;
+  experienceYears?: T;
   photo?: T;
   bio?: T;
   address?: T;
   latitude?: T;
   longitude?: T;
+  ratingAverage?: T;
+  reviewCount?: T;
   active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "doctor-reviews_select".
+ */
+export interface DoctorReviewsSelect<T extends boolean = true> {
+  patient?: T;
+  patientName?: T;
+  doctor?: T;
+  appointment?: T;
+  rating?: T;
+  comment?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -691,7 +755,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
- * Choose the chat and embedding providers the healthcare assistant uses. Keys stay in Payload. The Go service only calls this CMS.
+ * Choose the chat and embedding providers the knowledge assistant uses. Keys stay in Payload. The Go service only calls this CMS. Answers come from documents uploaded under Knowledge Files / Knowledge Documents.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "rag-settings".
@@ -700,11 +764,11 @@ export interface RagSetting {
   id: string;
   chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google';
   /**
-   * Examples: llama3.2 / deepseek-r1:1.5b (Ollama), gpt-4o-mini (OpenAI), claude-sonnet-4-5 (Anthropic), gemini-2.0-flash (Google).
+   * One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash. Switching provider fills the example; you can still type any model id.
    */
   chatModel: string;
   /**
-   * Leave blank for the provider default. For Ollama use http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full .../generateContent URL here.
+   * Leave blank for the provider default. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.
    */
   chatBaseUrl?: string | null;
   /**
@@ -716,7 +780,7 @@ export interface RagSetting {
    */
   embedProvider: 'ollama' | 'openai' | 'google';
   /**
-   * Examples: nomic-embed-text (768, Ollama), text-embedding-3-small (1536, OpenAI), gemini-embedding-001 (set dimensions to 768). Do not use chat model names for embeddings. Tip: keep Ollama embeddings even when chat is Gemini/OpenAI unless you re-ingest.
+   * One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768). Anthropic has no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.
    */
   embedModel: string;
   /**
@@ -731,9 +795,21 @@ export interface RagSetting {
    * Must match the model output and the Atlas vector index. Changing this requires dropping the index and re-ingesting every document.
    */
   embedDimensions: number;
+  /**
+   * Atlas cosine is (1+cos)/2, so ~0.50 is unrelated. Drop chunks below this floor.
+   */
   minScore: number;
+  /**
+   * A hit at or above this is a strong vector match. Seeded document questions typically land here after nomic prefixes.
+   */
   strongScore: number;
+  /**
+   * Minimum chunks above the score floor before the LLM is asked.
+   */
   minChunks: number;
+  /**
+   * Fraction of question content-words that must appear in retrieved text. High similarity + low coverage is "related topic, wrong question".
+   */
   minCoverage: number;
   maxConcurrency: number;
   updatedAt?: string | null;

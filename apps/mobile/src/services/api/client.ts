@@ -62,7 +62,7 @@ export async function request<T>(
     throw new ApiError(
       'NETWORK_ERROR',
       0,
-      'We could not reach the server. Check your connection and try again.',
+      `We could not reach the server at ${baseURL}. Check that your phone is on the same Wi‑Fi, the CMS is running, and HTTP cleartext is allowed.`,
     )
   }
 
@@ -109,13 +109,14 @@ export function mediaURL(media: unknown): string | undefined {
   const path = upload.sizes?.thumbnail?.url ?? upload.url
   if (!path) return undefined
 
-  // Absolute URLs from Payload (often http://localhost:3000/...) must be rewritten onto
-  // VITE_PAYLOAD_URL so Android emulators / devices can load them.
+  // Payload stamps absolute URLs with PAYLOAD_PUBLIC_URL (often http://localhost:3000).
+  // Re-host those onto VITE_PAYLOAD_URL so a phone can load them. CDN/S3 URLs are left alone.
   if (/^https?:\/\//i.test(path)) {
     try {
       const absolute = new URL(path)
       const base = new URL(baseURL)
-      if (absolute.pathname.startsWith('/api/')) {
+      const loopback = ['localhost', '127.0.0.1', '0.0.0.0'].includes(absolute.hostname)
+      if (loopback) {
         return `${base.origin}${absolute.pathname}${absolute.search}`
       }
       return path
@@ -126,4 +127,21 @@ export function mediaURL(media: unknown): string | undefined {
 
   const normalized = path.startsWith('/') ? path : `/${path}`
   return `${baseURL.replace(/\/$/, '')}${normalized}`
+}
+
+/**
+ * Load a remote image through `fetch` (patched by CapacitorHttp on native) and return a
+ * blob: URL. Needed because `<img src="http://…">` from the https Capacitor WebView is
+ * mixed content / blocked even when API JSON calls already work.
+ */
+export async function fetchMediaObjectUrl(media: unknown): Promise<string | undefined> {
+  const remote = mediaURL(media)
+  if (!remote) return undefined
+
+  const response = await fetch(remote)
+  if (!response.ok) {
+    throw new ApiError('REQUEST_FAILED', response.status, 'The image could not be loaded.')
+  }
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
 }

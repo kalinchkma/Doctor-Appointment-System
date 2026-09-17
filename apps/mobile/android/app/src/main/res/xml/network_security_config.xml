@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Assignment/dev network profile: allow cleartext HTTP and HTTPS to any host
+  so a phone can reach a local Payload CMS (http://LAN-IP:3000).
+  Tighten or remove before any real production release.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

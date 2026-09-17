@@ -16,6 +16,8 @@ export const ErrorCode = {
   APPOINTMENT_NOT_FOUND: 'APPOINTMENT_NOT_FOUND',
   ALREADY_CANCELLED: 'ALREADY_CANCELLED',
   CANCEL_TOO_LATE: 'CANCEL_TOO_LATE',
+  ALREADY_REVIEWED: 'ALREADY_REVIEWED',
+  REVIEW_NOT_ELIGIBLE: 'REVIEW_NOT_ELIGIBLE',
   ASSISTANT_UNAVAILABLE: 'ASSISTANT_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const
@@ -79,6 +81,18 @@ export const errors = {
       ErrorCode.CANCEL_TOO_LATE,
       409,
       'Cancellations need to be made at least 1 hour before the appointment. Please contact the clinic if you need help.',
+    ),
+  alreadyReviewed: () =>
+    new ApiError(
+      ErrorCode.ALREADY_REVIEWED,
+      409,
+      'You have already reviewed this doctor. Thank you for your feedback.',
+    ),
+  reviewNotEligible: () =>
+    new ApiError(
+      ErrorCode.REVIEW_NOT_ELIGIBLE,
+      403,
+      'You can review a doctor after a past appointment with them.',
     ),
 }
 

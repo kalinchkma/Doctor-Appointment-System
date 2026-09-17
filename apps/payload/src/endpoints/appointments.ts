@@ -68,10 +68,33 @@ async function parseNoteBody(req: PayloadRequest) {
 function relationId(value: unknown): string {
   if (!value) return ''
   if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (typeof value === 'object' && value !== null && 'id' in value) {
-    return String((value as { id: string }).id)
+  if (typeof value === 'object' && value !== null) {
+    if ('id' in value && (value as { id: unknown }).id != null) {
+      return String((value as { id: string | number }).id)
+    }
+    if ('_id' in value && (value as { _id: unknown })._id != null) {
+      return String((value as { _id: string | number })._id)
+    }
   }
-  return String(value)
+  return ''
+}
+
+function appointmentIdFromReq(req: PayloadRequest): string {
+  const fromParams = req.routeParams?.id
+  if (fromParams != null && String(fromParams).length > 0) {
+    return String(fromParams)
+  }
+  const path = req.pathname || req.url || ''
+  const match = path.match(/\/appointments\/([^/?#]+)\/(?:cancel|note)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
+}
+
+function assertOwnsAppointment(appointment: { patient?: unknown }, userId: string): void {
+  // Depth > 0 populates patient as an object; String(object) becomes "[object Object]"
+  // and falsely looks like a missing appointment. Always compare relation ids.
+  if (relationId(appointment.patient) !== String(userId)) {
+    throw errors.appointmentNotFound()
+  }
 }
 
 // The mongoose model rather than the raw driver collection: it casts the incoming string
@@ -82,21 +105,47 @@ type SlotDocument = { doctor: unknown; startsAt: string; status: string }
 
 const asSlot = (document: unknown) => document as SlotDocument | null
 
-/** Flip a slot back to available so another patient can book it. */
-async function releaseSlot(
-  req: PayloadRequest,
-  slotId: string,
-  transaction: Transaction,
-): Promise<SlotDocument | null> {
-  const options = transaction.session
-    ? { session: transaction.session, new: true as const }
-    : { new: true as const }
+/**
+ * Flip a slot back to available so another patient can book it.
+ * Prefer Payload's update (reliable id casting + transaction join via `req`).
+ * Fall back to the mongoose model if Payload cannot resolve the document.
+ */
+async function releaseSlot(req: PayloadRequest, slotId: string): Promise<boolean> {
+  if (!slotId) return false
 
-  return asSlot(
+  try {
+    const updated = await req.payload.update({
+      collection: 'appointment-slots',
+      id: slotId,
+      data: { status: 'available' },
+      overrideAccess: true,
+      req,
+      depth: 0,
+    })
+    return updated.status === 'available'
+  } catch (error) {
+    req.payload.logger.warn(
+      { err: error, slotId },
+      'payload slot release failed; trying mongoose fallback',
+    )
+  }
+
+  const options = (() => {
+    const txId = req.transactionID
+    if (typeof txId === 'string' || typeof txId === 'number') {
+      const session = req.payload.db.sessions[txId]
+      if (session) return { session, new: true as const }
+    }
+    return { new: true as const }
+  })()
+
+  const released = asSlot(
     await slotModel(req)
       .findOneAndUpdate({ _id: slotId }, { $set: { status: 'available' } }, options)
       .lean(),
   )
+
+  return released?.status === 'available'
 }
 
 /**
@@ -248,7 +297,7 @@ const cancel: Endpoint = {
 
     try {
       const user = requireUser(req)
-      const appointmentId = String(req.routeParams?.id ?? '')
+      const appointmentId = appointmentIdFromReq(req)
 
       if (!appointmentId) {
         throw errors.invalidInput('An appointment id is required.')
@@ -256,11 +305,11 @@ const cancel: Endpoint = {
 
       // Depth 1 so we can read the slot start time for the 1-hour cancel window.
       const appointment = await payload
-        .findByID({ 
-          collection: 'appointments', 
-          id: appointmentId, 
-          overrideAccess: true, // Use overrideAccess to bypass access control during lookup
-          depth: 1 
+        .findByID({
+          collection: 'appointments',
+          id: appointmentId,
+          overrideAccess: true,
+          depth: 1,
         })
         .catch(() => null)
 
@@ -268,10 +317,7 @@ const cancel: Endpoint = {
         throw errors.appointmentNotFound()
       }
 
-      // Check ownership after the lookup succeeds
-      if (String(appointment.patient) !== String(user.id)) {
-        throw errors.appointmentNotFound()
-      }
+      assertOwnsAppointment(appointment, String(user.id))
       if (appointment.status === 'cancelled') {
         throw errors.alreadyCancelled()
       }
@@ -302,11 +348,11 @@ const cancel: Endpoint = {
           data: { status: 'cancelled', cancelledAt: new Date().toISOString() },
         })
 
-        const released = await releaseSlot(req, slotId, transaction)
+        const released = await releaseSlot(req, slotId)
         if (!released) {
           payload.logger.error(
             { appointmentId, slotId },
-            'cancel could not find the slot document to release',
+            'cancel could not release the appointment slot',
           )
           throw errors.slotNotFound()
         }
@@ -318,7 +364,8 @@ const cancel: Endpoint = {
         await rollback(req, transaction)
 
         // Without a transaction the appointment cancel already committed. Free the slot
-        // anyway so the time does not stay locked on the calendar.
+        // anyway so the time does not stay locked on the calendar — and only report
+        // success when the slot is actually available again.
         if (!transaction.active) {
           const current = await payload
             .findByID({
@@ -330,15 +377,23 @@ const cancel: Endpoint = {
             .catch(() => null)
 
           if (current?.status === 'cancelled') {
-            await releaseSlot(req, slotId, { id: null, session: undefined, active: false }).catch(
-              (releaseError: unknown) => {
-                payload.logger.error(
-                  { err: releaseError, appointmentId, slotId },
-                  'failed to release slot after cancel',
-                )
-              },
+            const released = await releaseSlot(req, slotId).catch((releaseError: unknown) => {
+              payload.logger.error(
+                { err: releaseError, appointmentId, slotId },
+                'failed to release slot after cancel',
+              )
+              return false
+            })
+
+            if (released) {
+              return json({ id: appointmentId, status: 'cancelled', slotStatus: 'available' })
+            }
+
+            payload.logger.error(
+              { appointmentId, slotId },
+              'appointment cancelled but slot remained booked',
             )
-            return json({ id: appointmentId, status: 'cancelled', slotStatus: 'available' })
+            throw errors.slotNotFound()
           }
         }
 
@@ -364,7 +419,7 @@ const updateNote: Endpoint = {
 
     try {
       const user = requireUser(req)
-      const appointmentId = String(req.routeParams?.id ?? '')
+      const appointmentId = appointmentIdFromReq(req)
       const { patientNote } = await parseNoteBody(req)
 
       if (!appointmentId) {
@@ -372,11 +427,11 @@ const updateNote: Endpoint = {
       }
 
       const appointment = await payload
-        .findByID({ 
-          collection: 'appointments', 
-          id: appointmentId, 
-          overrideAccess: true, // Use overrideAccess to bypass access control during lookup
-          depth: 0 
+        .findByID({
+          collection: 'appointments',
+          id: appointmentId,
+          overrideAccess: true,
+          depth: 0,
         })
         .catch(() => null)
 
@@ -384,10 +439,7 @@ const updateNote: Endpoint = {
         throw errors.appointmentNotFound()
       }
 
-      // Check ownership after the lookup succeeds
-      if (String(appointment.patient) !== String(user.id)) {
-        throw errors.appointmentNotFound()
-      }
+      assertOwnsAppointment(appointment, String(user.id))
       if (appointment.status === 'cancelled') {
         throw errors.invalidInput('Comments cannot be updated on a cancelled appointment.')
       }

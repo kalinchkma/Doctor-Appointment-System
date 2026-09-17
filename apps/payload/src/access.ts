@@ -11,3 +11,9 @@ export const ownAppointments: Access = ({ req: { user } }) => {
   if (user?.role === 'admin') return true
   return user ? { patient: { equals: user.id } } : false
 }
+
+/** Patients may delete their own doctor reviews; admins may delete any. */
+export const ownReviews: Access = ({ req: { user } }) => {
+  if (user?.role === 'admin') return true
+  return user ? { patient: { equals: user.id } } : false
+}

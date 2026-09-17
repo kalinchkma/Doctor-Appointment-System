@@ -89,7 +89,7 @@ export function MyAppointments() {
 
   return (
     <IonPage>
-      <ScreenHeader title="My Appointments" backTo="/home" />
+      <ScreenHeader title="My Appointments" />
       <IonContent>
         <IonRefresher slot="fixed" onIonRefresh={refresh}>
           <IonRefresherContent />

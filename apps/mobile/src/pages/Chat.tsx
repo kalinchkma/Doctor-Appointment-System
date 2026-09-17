@@ -114,7 +114,7 @@ export function Chat() {
 
   return (
     <IonPage>
-      <ScreenHeader title="Healthcare assistant" backTo="/home" />
+      <ScreenHeader title="Healthcare assistant" />
       <IonContent className="ion-padding">
         <div className="chat-log">
           {messages.map((message) => (

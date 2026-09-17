@@ -4,9 +4,18 @@ const config: CapacitorConfig = {
   appId: 'com.doctorapp.careconnect',
   appName: 'CareConnect',
   webDir: 'dist',
-  // Development only: permits calls to a local HTTP Payload server on Android.
-  // Use HTTPS and set this to false before a production release.
-  server: { androidScheme: 'https', cleartext: true },
+  // Assignment/dev: allow plain HTTP to a local Payload CMS from the Android WebView.
+  server: {
+    androidScheme: 'https',
+    cleartext: true,
+  },
+  plugins: {
+    // Route window.fetch through native Android HTTP so https://localhost → http://LAN
+    // is not blocked as WebView mixed content (phone browser works; WebView fetch does not).
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 }
 
 export default config

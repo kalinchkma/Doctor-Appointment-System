@@ -20,11 +20,27 @@ export type Doctor = {
   specialization: string
   qualifications?: string
   bio?: string
+  experienceYears?: number | null
   photo?: Media | string | null
   address?: string | null
   latitude?: number | null
   longitude?: number | null
+  ratingAverage?: number | null
+  reviewCount?: number | null
+  /** True when the doctor has at least one open slot for the local calendar day. */
+  availableToday?: boolean
   active: boolean
+}
+
+export type DoctorReview = {
+  id: string
+  doctor: Doctor | string
+  patient: User | string
+  patientName?: string | null
+  appointment?: string | null
+  rating: number
+  comment?: string | null
+  createdAt: string
 }
 
 export type SlotStatus = 'available' | 'booked'
