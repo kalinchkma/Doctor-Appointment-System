@@ -133,7 +133,7 @@ pnpm dev:mobile
 ## Local AI provider and CMS configuration
 
 Chat and embeddings are configured in **Payload Admin → RAG Settings**, not in
-`.env`. The Go service never talks to Ollama, OpenAI, Anthropic, or Google. It
+`.env`. The Go service never talks to Ollama, OpenAI, Anthropic, Google, or OpenRouter. It
 calls Payload (`/api/internal/embeddings` and `/api/internal/chat/completions`);
 Payload holds the keys and talks to the chosen vendor.
 
@@ -154,8 +154,9 @@ To switch providers, open RAG Settings and pick:
 | Ollama (`llama3.2`) | Ollama (`nomic-embed-text`, 768) |
 | Ollama (`deepseek-r1:1.5b`) | Ollama (`nomic-embed-text`, 768) |
 | OpenAI (`gpt-4o-mini`) | OpenAI (`text-embedding-3-small`, 1536) — re-ingest after changing dimensions |
-| Anthropic Claude (`claude-sonnet-4-5`) | Ollama, OpenAI, or Google (Claude has no embeddings API) |
+| Anthropic Claude (`claude-sonnet-4-5`) | Ollama, OpenAI, Google, or OpenRouter (Claude has no embeddings API) |
 | Google Gemini (`gemini-2.0-flash`) | Google (`gemini-embedding-001`, set dimensions to 768) or keep Ollama embeddings |
+| OpenRouter (`openai/gpt-4o-mini`) | OpenRouter (`openai/text-embedding-3-small`, 1536) — use model ids from openrouter.ai/models |
 
 Paste the API key in the CMS only. Changing embedding dimensions requires
 dropping `knowledge_vector_index` and re-ingesting every document, then
@@ -386,8 +387,9 @@ in Payload; the user sees a generic unavailable message.
 | --- | --- | --- |
 | Ollama (local) | `llama3.2` | `nomic-embed-text` (768) |
 | OpenAI | `gpt-4o-mini` | `text-embedding-3-small` (1536) |
-| Anthropic Claude | `claude-sonnet-4-5` | *(none — use Ollama, OpenAI, or Google for embeddings)* |
+| Anthropic Claude | `claude-sonnet-4-5` | *(none — use Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
 | Google Gemini | `gemini-2.0-flash` | `gemini-embedding-001` (768) |
+| OpenRouter | `openai/gpt-4o-mini` | `openai/text-embedding-3-small` (1536) |
 
 Ollama talks to `http://host.docker.internal:11434` from Docker (or
 `http://127.0.0.1:11434` on the host). Pull both models once:

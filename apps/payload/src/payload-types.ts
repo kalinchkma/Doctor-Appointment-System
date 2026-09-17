@@ -762,13 +762,13 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  */
 export interface RagSetting {
   id: string;
-  chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google';
+  chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter';
   /**
-   * One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash. Switching provider fills the example; you can still type any model id.
+   * One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini. Switching provider fills the example; you can still type any model id.
    */
   chatModel: string;
   /**
-   * Leave blank for the provider default. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.
+   * Leave blank for the provider default. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.
    */
   chatBaseUrl?: string | null;
   /**
@@ -776,11 +776,11 @@ export interface RagSetting {
    */
   chatApiKey?: string | null;
   /**
-   * Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, or Google.
+   * Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, Google, or OpenRouter.
    */
-  embedProvider: 'ollama' | 'openai' | 'google';
+  embedProvider: 'ollama' | 'openai' | 'google' | 'openrouter';
   /**
-   * One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768). Anthropic has no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.
+   * One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768) · OpenRouter: openai/text-embedding-3-small (1536). Anthropic has no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.
    */
   embedModel: string;
   /**

@@ -57,6 +57,7 @@ services:
       MOBILE_ORIGIN: ${MOBILE_ORIGIN}
       RAG_SERVICE_URL: ${RAG_SERVICE_URL}
       RAG_INTERNAL_SECRET: ${RAG_INTERNAL_SECRET}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       KNOWLEDGE_FILES_DIR: /app/apps/payload/knowledge-files
       MEDIA_DIR: /app/apps/payload/media
@@ -86,6 +87,21 @@ services:
         condition: service_healthy
       rag:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - redis_data:/data
 
   # Internal only (ADR-006): no host port is published, so the RAG service is reachable
   # at http://rag:8080 from the CMS container and from nowhere else.
@@ -149,3 +165,4 @@ volumes:
   mongodb_mongot:
   cms_media:
   cms_knowledge_files:
+  redis_data:

@@ -122,6 +122,20 @@ func TestConcurrencyLimitReturns503(t *testing.T) {
 	close(hold)
 }
 
+func TestChatAcceptsHistory(t *testing.T) {
+	cfg := config.Config{InternalSecret: "s3cret", MaxConcurrency: 2, ChatTimeoutSec: 2, MinScore: 0.9, StrongScore: 0.95, MinChunks: 2}
+	handler := testServer(t, cfg, llm.FakeEmbedder{Dim: 8})
+
+	body := `{"question":"What about iron?","history":[{"role":"user","content":"Which micronutrients matter?"},{"role":"assistant","content":"Folate and iron."}]}`
+	req := httptest.NewRequest(http.MethodPost, "/internal/v1/chat", bytes.NewBufferString(body))
+	req.Header.Set("X-RAG-Internal-Secret", "s3cret")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("history chat: got %d body %s", res.Code, res.Body.String())
+	}
+}
+
 func TestHealthzOpen(t *testing.T) {
 	cfg := config.Config{InternalSecret: "s3cret", MaxConcurrency: 1, ChatTimeoutSec: 1}
 	handler := testServer(t, cfg, llm.FakeEmbedder{Dim: 8})

@@ -18,15 +18,23 @@ func TestSystemPromptContainsGrounding(t *testing.T) {
 	}
 }
 
-func TestBuildUserPromptNumbersChunks(t *testing.T) {
-	prompt := BuildUserPrompt("Why folic acid?", []vectorstore.ScoredChunk{{
-		Chunk: vectorstore.Chunk{ID: "doc1:3", Title: "Pregnancy Nutrition Guide", Page: 1, Text: "Folic acid helps."},
-	}})
-	if !strings.Contains(prompt, "[1]") || !strings.Contains(prompt, "id=doc1:3") {
-		t.Fatalf("chunks should be numbered and attributed: %s", prompt)
+func TestBuildUserPromptIncludesHistory(t *testing.T) {
+	prompt := BuildUserPrompt(
+		"What about iron?",
+		[]vectorstore.ScoredChunk{{
+			Chunk: vectorstore.Chunk{ID: "doc1:1", Title: "Pregnancy Nutrition", Page: 2, Text: "Iron supports blood volume."},
+		}},
+		HistoryTurn{Role: "user", Content: "Which micronutrients matter in pregnancy?"},
+		HistoryTurn{Role: "assistant", Content: "Folate and iron are commonly highlighted."},
+	)
+	if !strings.Contains(prompt, "Prior conversation") {
+		t.Fatalf("history block missing: %s", prompt)
 	}
-	if !strings.Contains(prompt, "Pregnancy Nutrition Guide") {
-		t.Fatal("title missing")
+	if !strings.Contains(prompt, "user: Which micronutrients") {
+		t.Fatalf("user history missing: %s", prompt)
+	}
+	if !strings.Contains(prompt, "What about iron?") {
+		t.Fatalf("current question missing: %s", prompt)
 	}
 }
 

@@ -17,6 +17,10 @@ export const CHAT_EXAMPLES: Record<ChatProvider, ChatExample> = {
   openai: { model: 'gpt-4o-mini', note: 'Cloud. Requires an OpenAI API key.' },
   anthropic: { model: 'claude-sonnet-4-5', note: 'Cloud. Anthropic has no embeddings API.' },
   google: { model: 'gemini-2.0-flash', note: 'Cloud. Requires a Gemini API key.' },
+  openrouter: {
+    model: 'openai/gpt-4o-mini',
+    note: 'Cloud via OpenRouter. Use provider/model ids from openrouter.ai/models. Requires an OpenRouter API key.',
+  },
 }
 
 /** One working embedding model per provider that actually produces vectors. */
@@ -36,13 +40,18 @@ export const EMBED_EXAMPLES: Record<EmbedProvider, EmbedExample> = {
     dims: 768,
     note: 'Cloud. outputDimensionality is pinned to 768 so the Atlas index stays stable.',
   },
+  openrouter: {
+    model: 'openai/text-embedding-3-small',
+    dims: 1536,
+    note: 'Cloud via OpenRouter. Use an embedding model id from openrouter.ai/models. Re-ingest after changing dims.',
+  },
 }
 
 export const CHAT_MODEL_HELP =
-  'One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash. Switching provider fills the example; you can still type any model id.'
+  'One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini. Switching provider fills the example; you can still type any model id.'
 
 export const EMBED_MODEL_HELP =
-  'One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768). Anthropic has no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.'
+  'One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768) · OpenRouter: openai/text-embedding-3-small (1536). Anthropic has no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.'
 
 /**
  * When the admin switches provider, fill that provider's example chat/embed model

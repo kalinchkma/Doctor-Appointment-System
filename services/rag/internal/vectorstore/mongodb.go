@@ -106,6 +106,37 @@ func (s *Store) CountByDocument(ctx context.Context, documentID string) (int64, 
 	return n, nil
 }
 
+// DocumentTitles returns distinct knowledge-document titles for AI intent triage.
+func (s *Store) DocumentTitles(ctx context.Context, limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 40
+	}
+	var values []any
+	if err := s.chunks.Distinct(ctx, "title", bson.D{}).Decode(&values); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, err
+	}
+	titles := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		title := strings.TrimSpace(fmt.Sprint(value))
+		if title == "" || title == "<nil>" {
+			continue
+		}
+		if _, ok := seen[title]; ok {
+			continue
+		}
+		seen[title] = struct{}{}
+		titles = append(titles, title)
+		if len(titles) >= limit {
+			break
+		}
+	}
+	return titles, nil
+}
+
 func (s *Store) Search(ctx context.Context, embedding []float32, limit int) ([]ScoredChunk, error) {
 	if limit < 1 {
 		limit = 6

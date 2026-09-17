@@ -51,6 +51,11 @@ type ChunkStore interface {
 	Search(ctx context.Context, embedding []float32, limit int) ([]vectorstore.ScoredChunk, error)
 }
 
+// titleLister optionally supplies knowledge-document titles for AI intent triage.
+type titleLister interface {
+	DocumentTitles(ctx context.Context, limit int) ([]string, error)
+}
+
 type Pipeline struct {
 	cfg      config.Config
 	store    ChunkStore
@@ -165,14 +170,15 @@ func (p *Pipeline) Delete(ctx context.Context, documentID string) error {
 	return p.store.DeleteByDocument(ctx, documentID)
 }
 
-func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error) {
+func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.HistoryTurn) (ChatResult, error) {
 	question = strings.TrimSpace(question)
 	if question == "" {
 		return ChatResult{Answer: FallbackAnswer, Reason: string(relevance.ReasonNoResults)}, nil
 	}
 
-	switch kind := intent.Classify(question); kind {
-	case intent.KindGreeting, intent.KindIdentity:
+	kind := p.triage(ctx, question)
+	switch kind {
+	case intent.KindGreeting, intent.KindIdentity, intent.KindOffTopic:
 		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
 		return p.converse(ctx, kind, question)
 	}
@@ -214,6 +220,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 
 	slog.Info("chat retrieval",
 		"question", truncate(question, 120),
+		"historyTurns", len(history),
 		"hits", len(hits),
 		"kept", len(decision.Kept),
 		"topScore", decision.TopScore,
@@ -236,7 +243,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string) (ChatResult, error)
 	}
 
 	genStarted := time.Now()
-	raw, err := p.generate.Generate(ctx, llm.SystemPrompt, llm.BuildUserPrompt(question, decision.Kept))
+	raw, err := p.generate.Generate(ctx, llm.SystemPrompt, llm.BuildUserPrompt(question, decision.Kept, history...))
 	if err != nil {
 		slog.Error("chat generate failed",
 			"error", err,
@@ -299,6 +306,33 @@ func (p *Pipeline) embedTexts(ctx context.Context, texts []string, task string) 
 		return te.EmbedTask(ctx, texts, task)
 	}
 	return p.embedder.Embed(ctx, texts)
+}
+
+func (p *Pipeline) triage(ctx context.Context, question string) intent.Kind {
+	titles := p.documentTitles(ctx)
+	raw, err := p.generate.Generate(ctx, intent.TriageSystem, intent.TriageUser(question, titles))
+	if err != nil {
+		slog.Warn("intent triage failed, using heuristic", "error", err)
+		return intent.ClassifyHeuristic(question)
+	}
+	if kind, ok := intent.ParseTriage(raw); ok {
+		return kind
+	}
+	slog.Warn("intent triage unparseable, using heuristic", "raw", truncate(raw, 120))
+	return intent.ClassifyHeuristic(question)
+}
+
+func (p *Pipeline) documentTitles(ctx context.Context) []string {
+	lister, ok := p.store.(titleLister)
+	if !ok {
+		return nil
+	}
+	titles, err := lister.DocumentTitles(ctx, 40)
+	if err != nil {
+		slog.Warn("document titles for triage failed", "error", err)
+		return nil
+	}
+	return titles
 }
 
 func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question string) (ChatResult, error) {

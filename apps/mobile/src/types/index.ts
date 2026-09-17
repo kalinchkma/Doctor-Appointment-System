@@ -88,6 +88,7 @@ export type Session = { token: string; user: User }
 export type ChatSource = { title: string; page?: number; score?: number }
 
 export type ChatReply = {
+  sessionId: string
   answer: string
   sources: ChatSource[]
   /** False when the knowledge base did not contain enough evidence to answer. */
@@ -95,6 +96,21 @@ export type ChatReply = {
   topScore?: number
   confidence?: number
   reason?: string
+}
+
+export type ChatSessionMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  grounded?: boolean
+  sources?: ChatSource[]
+  createdAt: string
+}
+
+export type ChatSession = {
+  id: string
+  createdAt: string
+  updatedAt: string
+  messages: ChatSessionMessage[]
 }
 
 export type ChatSuggestedQuestion = {

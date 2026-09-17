@@ -7,6 +7,15 @@ const ollamaFallback = () =>
   (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1').replace(/\/$/, '')
 
 const GOOGLE_API = 'https://generativelanguage.googleapis.com/v1beta'
+const OPENROUTER_API = 'https://openrouter.ai/api/v1'
+
+function openRouterHeaders(apiKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'https://das.local',
+    'X-Title': process.env.OPENROUTER_APP_TITLE || 'DAS Knowledge Assistant',
+  }
+}
 
 /** Strip optional `models/` prefix used in Gemini resource names. */
 function googleModelId(model: string): string {
@@ -52,7 +61,7 @@ function providerBaseUrl(
 
   // Ignore leftover URLs from a previous provider (common after switching Gemini ↔ Ollama).
   if (provider === 'ollama') {
-    if (/googleapis\.com|openai\.com|anthropic\.com|generateContent|batchEmbed/i.test(value)) {
+    if (/googleapis\.com|openai\.com|anthropic\.com|openrouter\.ai|generateContent|batchEmbed/i.test(value)) {
       return fallback.replace(/\/$/, '')
     }
   }
@@ -66,7 +75,12 @@ function providerBaseUrl(
       .replace(/\/$/, '')
     return stripped || GOOGLE_API
   }
-  if (provider === 'openai' && /googleapis\.com|11434|ollama/i.test(value)) {
+  if (provider === 'openrouter') {
+    if (/googleapis\.com|11434|ollama|anthropic\.com/i.test(value) && !/openrouter\.ai/i.test(value)) {
+      return fallback.replace(/\/$/, '')
+    }
+  }
+  if (provider === 'openai' && /googleapis\.com|11434|ollama|openrouter\.ai/i.test(value)) {
     return fallback.replace(/\/$/, '')
   }
   return value
@@ -83,6 +97,11 @@ function chatEndpoint(settings: RagRuntimeSettings): { url: string; headers: Rec
       return {
         url: `${providerBaseUrl('openai', settings.chatBaseUrl, 'https://api.openai.com/v1')}/chat/completions`,
         headers: { Authorization: `Bearer ${key}` },
+      }
+    case 'openrouter':
+      return {
+        url: `${providerBaseUrl('openrouter', settings.chatBaseUrl, OPENROUTER_API)}/chat/completions`,
+        headers: openRouterHeaders(key),
       }
     case 'anthropic':
       return {
@@ -112,6 +131,11 @@ function embedEndpoint(settings: RagRuntimeSettings): { url: string; headers: Re
       return {
         url: `${providerBaseUrl('openai', settings.embedBaseUrl, 'https://api.openai.com/v1')}/embeddings`,
         headers: { Authorization: `Bearer ${key}` },
+      }
+    case 'openrouter':
+      return {
+        url: `${providerBaseUrl('openrouter', settings.embedBaseUrl, OPENROUTER_API)}/embeddings`,
+        headers: openRouterHeaders(key),
       }
     case 'google': {
       const model = resolveGoogleEmbedModel(settings.embedModel)
@@ -281,6 +305,10 @@ export async function proxyEmbeddings(
     throw new Error('OpenAI embedding API key is missing in RAG Settings')
   }
 
+  if (settings.embedProvider === 'openrouter' && !settings.embedApiKey?.trim()) {
+    throw new Error('OpenRouter embedding API key is missing in RAG Settings')
+  }
+
   if (settings.embedProvider === 'ollama') {
     return embedOllama(settings, texts)
   }
@@ -358,6 +386,10 @@ export async function proxyCompletion(
     throw new Error('OpenAI API key is missing in RAG Settings')
   }
 
+  if (provider === 'openrouter' && !settings.chatApiKey?.trim()) {
+    throw new Error('OpenRouter API key is missing in RAG Settings')
+  }
+
   const isDeepSeekReasoner =
     settings.chatProvider === 'ollama' &&
     /deepseek-r1|deepseek-reasoner/i.test(settings.chatModel)
@@ -392,9 +424,12 @@ export async function proxyCompletion(
 }
 
 function supportsJsonObjectMode(settings: RagRuntimeSettings): boolean {
-  if (settings.chatProvider !== 'ollama') return true
-  const model = settings.chatModel.toLowerCase()
-  return !(model.includes('deepseek-r1') || model.includes('deepseek-reasoner'))
+  if (settings.chatProvider === 'ollama') {
+    const model = settings.chatModel.toLowerCase()
+    return !(model.includes('deepseek-r1') || model.includes('deepseek-reasoner'))
+  }
+  // OpenAI, OpenRouter, and other OpenAI-compatible chat endpoints support json_object.
+  return true
 }
 
 function stripReasoningWrappers(text: string): string {

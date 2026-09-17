@@ -54,4 +54,12 @@ assert.equal(switched.chatModel, 'gemini-2.0-flash')
 assert.equal(switched.embedModel, 'text-embedding-3-small')
 assert.equal(switched.embedDimensions, 1536)
 
+const openrouter = applyProviderExamples(
+  { chatProvider: 'openrouter', embedProvider: 'openrouter' },
+  { chatProvider: 'ollama', chatModel: 'llama3.2', embedProvider: 'ollama', embedModel: 'nomic-embed-text' },
+)
+assert.equal(openrouter.chatModel, 'openai/gpt-4o-mini')
+assert.equal(openrouter.embedModel, 'openai/text-embedding-3-small')
+assert.equal(openrouter.embedDimensions, 1536)
+
 console.log('llm provider helpers ok')

@@ -62,7 +62,7 @@ func TestAskGreetingFallsBackWhenModelReturnsJSON(t *testing.T) {
 }
 
 func TestAskNonMedicalQuestionUsesKnowledgeRetrieval(t *testing.T) {
-	// Previously these were classified off_topic and never searched the vector store.
+	// Offline scripted triage prefers knowledge so retrieval gates decide.
 	pipe := New(
 		config.Config{MinScore: 0.5, StrongScore: 0.58, MinChunks: 1, MinCoverage: 0.25},
 		emptyStore{},
@@ -82,5 +82,34 @@ func TestAskNonMedicalQuestionUsesKnowledgeRetrieval(t *testing.T) {
 	}
 	if got.Reason != "no_results" {
 		t.Fatalf("expected no_results from empty knowledge base, got %q", got.Reason)
+	}
+}
+
+type offTopicGenerator struct{}
+
+func (offTopicGenerator) Generate(_ context.Context, system, _ string) (string, error) {
+	if strings.Contains(strings.ToLower(system), "triage classifier") {
+		return `{"kind":"off_topic"}`, nil
+	}
+	return "I only answer from the clinic's uploaded knowledge documents. Ask about those topics instead.", nil
+}
+
+func TestAskOffTopicUsesConversationalPath(t *testing.T) {
+	pipe := New(
+		config.Config{},
+		emptyStore{},
+		llm.FakeEmbedder{Dim: 8},
+		offTopicGenerator{},
+		nil,
+	)
+	got, err := pipe.Ask(context.Background(), "Who won the World Cup?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Reason != "off_topic" {
+		t.Fatalf("reason %s", got.Reason)
+	}
+	if !got.Sufficient || !strings.Contains(strings.ToLower(got.Answer), "knowledge") {
+		t.Fatalf("expected off-topic conversational reply, got %+v", got)
 	}
 }

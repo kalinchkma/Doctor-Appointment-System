@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/example/doctor-appointment-rag/services/rag/internal/config"
+	"github.com/example/doctor-appointment-rag/services/rag/internal/llm"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/pipeline"
 )
 
@@ -117,13 +118,30 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Question string `json:"question"`
+		History  []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"history"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Question) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "question is required"})
 		return
 	}
 
-	result, err := s.pipe.Ask(ctx, body.Question)
+	history := make([]llm.HistoryTurn, 0, len(body.History))
+	for _, turn := range body.History {
+		role := strings.ToLower(strings.TrimSpace(turn.Role))
+		content := strings.TrimSpace(turn.Content)
+		if content == "" {
+			continue
+		}
+		if role != "user" && role != "assistant" {
+			role = "user"
+		}
+		history = append(history, llm.HistoryTurn{Role: role, Content: content})
+	}
+
+	result, err := s.pipe.Ask(ctx, body.Question, history...)
 	if err != nil {
 		slog.Error("chat failed", "error", err, "requestId", r.Header.Get("X-Request-Id"), "question", body.Question)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {

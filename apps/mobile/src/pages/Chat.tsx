@@ -13,11 +13,17 @@ import {
   IonSpinner,
   IonToolbar,
 } from '@ionic/react'
-import { send } from 'ionicons/icons'
+import { createOutline, send } from 'ionicons/icons'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor } from '../hooks/useAsync'
-import { askChatbot, listSuggestedQuestions } from '../services/api/chat'
-import type { ChatSource, ChatSuggestedQuestion } from '../types'
+import {
+  askChatbot,
+  createChatSession,
+  getActiveChatSession,
+  listSuggestedQuestions,
+  resetChatSession,
+} from '../services/api/chat'
+import type { ChatSessionMessage, ChatSource, ChatSuggestedQuestion } from '../types'
 
 type Message = {
   id: string
@@ -36,10 +42,23 @@ const greeting: Message = {
   text: 'Hello. Ask me about the clinic’s healthcare guidance and I will answer from our published documents. If something is not covered there, I will say so rather than guess.',
 }
 
+function fromSessionMessages(messages: ChatSessionMessage[]): Message[] {
+  if (messages.length === 0) return [greeting]
+  return messages.map((message, index) => ({
+    id: `s-${index}-${message.createdAt}`,
+    author: message.role === 'user' ? 'user' : 'assistant',
+    text: message.content,
+    sources: message.grounded ? message.sources : [],
+    fallback: message.role === 'assistant' ? message.grounded === false : undefined,
+  }))
+}
+
 export function Chat() {
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([greeting])
   const [question, setQuestion] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [loadingSession, setLoadingSession] = useState(true)
   const [suggestions, setSuggestions] = useState<ChatSuggestedQuestion[]>([])
   const [selectedSuggestion, setSelectedSuggestion] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
@@ -59,13 +78,38 @@ export function Chat() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    setLoadingSession(true)
+    ;(async () => {
+      try {
+        let session = await getActiveChatSession().catch(() => null)
+        if (!session) {
+          session = await createChatSession()
+        }
+        if (cancelled) return
+        setSessionId(session.id)
+        setMessages(fromSessionMessages(session.messages))
+      } catch {
+        if (cancelled) return
+        setSessionId(null)
+        setMessages([greeting])
+      } finally {
+        if (!cancelled) setLoadingSession(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
 
   const ask = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
-      if (!trimmed || thinking) return
+      if (!trimmed || thinking || !sessionId) return
 
       setMessages((current) => [
         ...current,
@@ -76,7 +120,8 @@ export function Chat() {
       setThinking(true)
 
       try {
-        const reply = await askChatbot(trimmed)
+        const reply = await askChatbot(sessionId, trimmed)
+        setSessionId(reply.sessionId)
         setMessages((current) => [
           ...current,
           {
@@ -98,8 +143,27 @@ export function Chat() {
         setThinking(false)
       }
     },
-    [thinking],
+    [thinking, sessionId],
   )
+
+  const onNewChat = async () => {
+    if (!sessionId || thinking) return
+    setThinking(true)
+    try {
+      const session = await resetChatSession(sessionId)
+      setSessionId(session.id)
+      setMessages([greeting])
+      setSelectedSuggestion('')
+      setQuestion('')
+    } catch (reason) {
+      setMessages((current) => [
+        ...current,
+        { id: `e-${Date.now()}`, author: 'assistant', text: messageFor(reason), failed: true },
+      ])
+    } finally {
+      setThinking(false)
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -114,51 +178,42 @@ export function Chat() {
 
   return (
     <IonPage>
-      <ScreenHeader title="Healthcare assistant" />
+      <ScreenHeader
+        title="Healthcare assistant"
+        actions={
+          <IonButton
+            onClick={onNewChat}
+            disabled={!sessionId || thinking || loadingSession}
+            aria-label="Start a new chat"
+          >
+            <IonIcon slot="icon-only" icon={createOutline} />
+          </IonButton>
+        }
+      />
       <IonContent className="ion-padding">
-        <div className="chat-log">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
-            >
-              <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
-              {/**
-               * 
-              {message.author === 'assistant' && (message.topScore ?? 0) > 0 && (
-                <p className="chat-meta">
-                  {(message.confidence ?? 0) > 0
-                    ? `Confidence ${Math.round((message.confidence ?? 0) * 100)}%`
-                    : null}
-                  {(message.confidence ?? 0) > 0 ? ' · ' : null}
-                  {`Similarity ${Math.round((message.topScore ?? 0) * 100)}%`}
-                </p>
-              )}
-               */}
-             { /**
-              {message.sources && message.sources.length > 0 && (
-                <ul className="sources">
-                  {message.sources.map((source, index) => (
-                    <li key={`${message.id}-${index}`}>
-                      {source.title}
-                      {source.page ? `, page ${source.page}` : ''}
-                      {typeof source.score === 'number' && source.score > 0
-                        ? ` · ${Math.round(source.score * 100)}%`
-                        : ''}
-                    </li>
-                  ))}
-                </ul>
-              )}
-               */}
-            </div>
-          ))}
-          {thinking && (
-            <div className="bubble assistant">
-              <IonSpinner name="dots" />
-            </div>
-          )}
-          <div ref={bottom} />
-        </div>
+        {loadingSession ? (
+          <div className="state-block">
+            <IonSpinner />
+            <p>Restoring your chat…</p>
+          </div>
+        ) : (
+          <div className="chat-log">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
+              >
+                <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
+              </div>
+            ))}
+            {thinking && (
+              <div className="bubble assistant">
+                <IonSpinner name="dots" />
+              </div>
+            )}
+            <div ref={bottom} />
+          </div>
+        )}
       </IonContent>
       <IonFooter>
         <IonToolbar className="ion-padding-horizontal chat-toolbar">
@@ -169,7 +224,7 @@ export function Chat() {
                 interface="action-sheet"
                 placeholder="Choose a pre-built question"
                 value={selectedSuggestion || undefined}
-                disabled={thinking}
+                disabled={thinking || loadingSession || !sessionId}
                 aria-label="Suggested questions"
                 onIonChange={(event) => onSuggestionChange(event.detail.value)}
               >
@@ -186,9 +241,14 @@ export function Chat() {
               value={question}
               placeholder="Or type your own question"
               aria-label="Ask a health question"
+              disabled={loadingSession || !sessionId}
               onIonInput={(event) => setQuestion(event.detail.value ?? '')}
             />
-            <IonButton type="submit" disabled={thinking || !question.trim()} aria-label="Send">
+            <IonButton
+              type="submit"
+              disabled={thinking || loadingSession || !sessionId || !question.trim()}
+              aria-label="Send"
+            >
               <IonIcon slot="icon-only" icon={send} />
             </IonButton>
           </form>

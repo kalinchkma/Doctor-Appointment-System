@@ -1,13 +1,30 @@
-import type { ChatReply, ChatSuggestedQuestion } from '../../types'
-import { get, post } from './client'
+import type { ChatReply, ChatSession, ChatSuggestedQuestion } from '../../types'
+import { ApiError, get, post } from './client'
 
 /**
  * The mobile app only ever talks to Payload. The RAG service, the vector store, and the
  * LLM credentials stay behind that boundary (ADR-006, ADR-017).
  */
 /** Chat waits on retrieval + LLM; keep above Payload's askRag budget (~200s). */
-export const askChatbot = (question: string) =>
-  post<ChatReply>('/api/chat', { question }, { timeoutMs: 210_000 })
+export const askChatbot = (sessionId: string, question: string) => {
+  if (!sessionId?.trim()) {
+    return Promise.reject(
+      new ApiError(
+        'INVALID_INPUT',
+        400,
+        'Chat session is not ready yet. Close and reopen Chat, then try again.',
+      ),
+    )
+  }
+  return post<ChatReply>('/api/chat', { sessionId, question }, { timeoutMs: 210_000 })
+}
+
+export const createChatSession = () => post<ChatSession>('/api/chat/sessions')
+
+export const getActiveChatSession = () => get<ChatSession>('/api/chat/sessions/active')
+
+export const resetChatSession = (sessionId: string) =>
+  post<ChatSession>(`/api/chat/sessions/${sessionId}/reset`)
 
 type SuggestedList = {
   docs: ChatSuggestedQuestion[]

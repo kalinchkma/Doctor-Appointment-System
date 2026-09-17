@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { clearToken, readToken } from '../storage'
 
 export const baseURL = (import.meta.env.VITE_PAYLOAD_URL as string) || 'http://localhost:3000'
@@ -27,31 +28,144 @@ export function setUnauthenticatedHandler(handler: (() => void) | null) {
   onUnauthenticated = handler
 }
 
+function mergeHeaders(
+  token: string | null,
+  initHeaders: HeadersInit | undefined,
+  hasJsonBody: boolean,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    // Only set JSON content-type when we actually send a body. Empty POSTs with this
+    // header confuse some native HTTP stacks into sending `{}` / dropping the payload.
+    ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
+    // Payload also accepts a cookie, but the Android WebView origin differs from the
+    // API origin, which makes that cookie cross-site. The header works everywhere.
+    ...(token ? { Authorization: `JWT ${token}` } : {}),
+  }
+
+  if (!initHeaders) return headers
+
+  const extra =
+    initHeaders instanceof Headers
+      ? Object.fromEntries(initHeaders.entries())
+      : Array.isArray(initHeaders)
+        ? Object.fromEntries(initHeaders)
+        : initHeaders
+
+  for (const [key, value] of Object.entries(extra)) {
+    if (value != null) headers[key] = String(value)
+  }
+  return headers
+}
+
+function parseJsonBody(body: BodyInit | null | undefined): unknown {
+  if (body == null) return undefined
+  if (typeof body === 'string') {
+    if (!body) return undefined
+    try {
+      return JSON.parse(body) as unknown
+    } catch {
+      return body
+    }
+  }
+  return undefined
+}
+
+async function throwIfFailed(status: number, body: ErrorBody): Promise<void> {
+  if (status >= 200 && status < 300) return
+  if (status === 401) {
+    await clearToken()
+    onUnauthenticated?.()
+  }
+  throw new ApiError(
+    body.code ?? 'REQUEST_FAILED',
+    status,
+    body.message ?? body.errors?.[0]?.message ?? 'Something went wrong. Please try again.',
+  )
+}
+
+/**
+ * Native CapacitorHttp path. Prefer this over patched `fetch` for JSON APIs:
+ * AbortSignal / Request cloning has dropped POST bodies on Android (empty `{}` → Zod
+ * "expected string, received undefined" on /api/chat).
+ */
+async function requestNative<T>(
+  path: string,
+  init: RequestInit,
+  options: { timeoutMs?: number },
+  token: string | null,
+): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const data = parseJsonBody(init.body)
+  const hasJsonBody = data !== undefined
+  const timeoutMs = options.timeoutMs
+
+  const response = await CapacitorHttp.request({
+    url: `${baseURL}${path}`,
+    method,
+    headers: mergeHeaders(token, init.headers, hasJsonBody),
+    data,
+    ...(typeof timeoutMs === 'number' && timeoutMs > 0
+      ? { connectTimeout: timeoutMs, readTimeout: timeoutMs }
+      : {}),
+  })
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const raw = response.data
+  const body = (
+    typeof raw === 'string'
+      ? (JSON.parse(raw || '{}') as ErrorBody & T)
+      : ((raw ?? {}) as ErrorBody & T)
+  ) as ErrorBody & T
+
+  await throwIfFailed(response.status, body)
+  return body
+}
+
+async function requestWeb<T>(
+  path: string,
+  init: RequestInit,
+  options: { timeoutMs?: number },
+  token: string | null,
+): Promise<T> {
+  const data = parseJsonBody(init.body)
+  const hasJsonBody = data !== undefined
+  const timeoutMs = options.timeoutMs
+  const signal =
+    init.signal ??
+    (typeof timeoutMs === 'number' && timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
+
+  const response = await fetch(`${baseURL}${path}`, {
+    ...init,
+    signal,
+    headers: mergeHeaders(token, init.headers, hasJsonBody),
+  })
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const body = (await response.json().catch(() => ({}))) as ErrorBody & T
+  await throwIfFailed(response.status, body)
+  return body
+}
+
 export async function request<T>(
   path: string,
   init: RequestInit = {},
   options: { timeoutMs?: number } = {},
 ): Promise<T> {
   const token = await readToken()
-  const timeoutMs = options.timeoutMs
-  const signal =
-    init.signal ??
-    (typeof timeoutMs === 'number' && timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined)
 
-  let response: Response
   try {
-    response = await fetch(`${baseURL}${path}`, {
-      ...init,
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        // Payload also accepts a cookie, but the Android WebView origin differs from the
-        // API origin, which makes that cookie cross-site. The header works everywhere.
-        ...(token ? { Authorization: `JWT ${token}` } : {}),
-        ...init.headers,
-      },
-    })
+    if (Capacitor.isNativePlatform()) {
+      return await requestNative<T>(path, init, options, token)
+    }
+    return await requestWeb<T>(path, init, options, token)
   } catch (error) {
+    if (error instanceof ApiError) throw error
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
       throw new ApiError(
         'ASSISTANT_UNAVAILABLE',
@@ -65,26 +179,6 @@ export async function request<T>(
       `We could not reach the server at ${baseURL}. Check that your phone is on the same Wi‑Fi, the CMS is running, and HTTP cleartext is allowed.`,
     )
   }
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  const body = (await response.json().catch(() => ({}))) as ErrorBody & T
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      await clearToken()
-      onUnauthenticated?.()
-    }
-    throw new ApiError(
-      body.code ?? 'REQUEST_FAILED',
-      response.status,
-      body.message ?? body.errors?.[0]?.message ?? 'Something went wrong. Please try again.',
-    )
-  }
-
-  return body
 }
 
 export const get = <T>(path: string, options?: { timeoutMs?: number }) =>

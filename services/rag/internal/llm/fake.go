@@ -80,11 +80,44 @@ func normalize(vec []float32) {
 }
 
 // ScriptedGenerator returns pre-canned completions. Used by unit tests.
+// Triage prompts (system contains "triage classifier") get a synthetic JSON kind
+// so pipeline tests stay offline without a real model.
 type ScriptedGenerator struct {
 	Response string
 	Err      error
 }
 
-func (s ScriptedGenerator) Generate(_ context.Context, _, _ string) (string, error) {
-	return s.Response, s.Err
+func (s ScriptedGenerator) Generate(_ context.Context, system, user string) (string, error) {
+	if s.Err != nil {
+		return "", s.Err
+	}
+	if strings.Contains(strings.ToLower(system), "triage classifier") {
+		return scriptedTriage(user), nil
+	}
+	return s.Response, nil
+}
+
+func scriptedTriage(user string) string {
+	msg := strings.ToLower(user)
+	if i := strings.Index(msg, "message to classify:"); i >= 0 {
+		msg = strings.TrimSpace(msg[i+len("message to classify:"):])
+	}
+	if nl := strings.IndexByte(msg, '\n'); nl >= 0 {
+		msg = strings.TrimSpace(msg[:nl])
+	}
+	msg = strings.TrimRight(msg, "!?.")
+
+	switch {
+	case msg == "who are you",
+		msg == "what can you do",
+		strings.HasPrefix(msg, "how can you help"),
+		strings.Contains(msg, "what can you do"):
+		return `{"kind":"identity"}`
+	case msg == "hi", msg == "hello", msg == "hey", msg == "good morning",
+		msg == "thanks", msg == "thank you", msg == "hi there", msg == "hello there":
+		return `{"kind":"greeting"}`
+	default:
+		// Prefer knowledge so retrieval + gates decide; matches production triage bias.
+		return `{"kind":"knowledge"}`
+	}
 }

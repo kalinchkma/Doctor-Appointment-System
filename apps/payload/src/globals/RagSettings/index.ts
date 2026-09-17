@@ -43,6 +43,7 @@ export const RagSettings: GlobalConfig = {
             { label: 'OpenAI', value: 'openai' },
             { label: 'Anthropic Claude', value: 'anthropic' },
             { label: 'Google Gemini', value: 'google' },
+            { label: 'OpenRouter', value: 'openrouter' },
           ],
         },
         {
@@ -59,7 +60,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.',
+              'Leave blank for the provider default. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.',
           },
         },
         {
@@ -86,10 +87,11 @@ export const RagSettings: GlobalConfig = {
             { label: 'Ollama (local)', value: 'ollama' },
             { label: 'OpenAI', value: 'openai' },
             { label: 'Google Gemini', value: 'google' },
+            { label: 'OpenRouter', value: 'openrouter' },
           ],
           admin: {
             description:
-              'Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, or Google.',
+              'Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, Google, or OpenRouter.',
           },
         },
         {
