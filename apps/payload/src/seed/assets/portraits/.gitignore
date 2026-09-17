@@ -1,0 +1,3 @@
+# Seed portrait cache (downloaded from Unsplash during `pnpm seed`).
+*
+!.gitignore

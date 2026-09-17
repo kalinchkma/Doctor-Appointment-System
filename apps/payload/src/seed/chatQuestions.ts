@@ -1,20 +1,17 @@
 import type { Payload } from 'payload'
 
+/** Natural prompts aligned with the seeded knowledge PDFs — plus one weak-coverage demo. */
 const QUESTIONS: { question: string; order: number }[] = [
-  // pregnancy-nutrition.pdf
-  { question: 'Does energy need to double during pregnancy?', order: 10 },
-  { question: 'Which micronutrients are highlighted for pregnancy nutrition?', order: 20 },
-  { question: 'What does the pregnancy nutrition guide say about alcohol?', order: 30 },
-  // prenatal-care.pdf
-  { question: 'How many antenatal contacts did the WHO 2016 model recommend?', order: 40 },
-  { question: 'What is the purpose of antenatal care?', order: 50 },
-  { question: 'What can maternal assessment include during prenatal care?', order: 60 },
-  // child-nutrition.pdf
-  { question: 'At what age should complementary foods start?', order: 70 },
-  { question: 'How many meals per day are described for ages 6–8 months?', order: 80 },
-  { question: 'What is responsive feeding?', order: 90 },
-  // Intentionally weakly covered — useful for demos of the fallback path.
-  { question: 'What paracetamol dosage is safe in the third trimester?', order: 100 },
+  { question: 'What should I eat during pregnancy?', order: 10 },
+  { question: 'Do I need to eat for two while pregnant?', order: 20 },
+  { question: 'Which vitamins matter most in pregnancy?', order: 30 },
+  { question: 'Is alcohol safe at any stage of pregnancy?', order: 40 },
+  { question: 'How many antenatal visits does WHO recommend?', order: 50 },
+  { question: 'What happens during a prenatal check-up?', order: 60 },
+  { question: 'When should my baby start solid foods?', order: 70 },
+  { question: 'How often should a 6–8 month old eat each day?', order: 80 },
+  { question: 'What is responsive feeding for infants?', order: 90 },
+  { question: 'What paracetamol dose is safe in the third trimester?', order: 100 },
 ]
 
 export async function seedChatQuestions(payload: Payload) {

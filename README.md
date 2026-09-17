@@ -482,7 +482,7 @@ pnpm lint:go      # gofmt + go vet
 pnpm typecheck    # tsc --noEmit across the workspace
 pnpm test:unit    # Go RAG unit tests
 pnpm build        # production build of both applications
-pnpm seed         # 3 doctors, weekday slots, knowledge PDFs
+pnpm seed         # doctors, photos, slots, reviews, chat chips, knowledge PDFs
 pnpm docker:seed  # same, against the Compose MongoDB / CMS
 (cd services/rag && go test ./...)
 ```
