@@ -26,7 +26,8 @@
     "docker:deploy": "bash infrastructure/nginx/deploy.sh",
     "docker:deploy:ec2": "bash infrastructure/nginx/deploy.sh --ec2",
     "docker:down": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml down",
-    "docker:seed": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml --profile seed up seed"
+    "docker:seed": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml --profile seed up seed",
+    "docker:seed:ec2": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.ec2.yml --profile seed up --build seed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
