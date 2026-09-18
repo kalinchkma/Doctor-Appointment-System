@@ -43,6 +43,8 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.cms
+      args:
+        PAYLOAD_PUBLIC_URL: ${PAYLOAD_PUBLIC_URL:-http://localhost:3000}
     environment:
       NODE_ENV: production
       # Next.js standalone binds to process.env.HOSTNAME. Docker sets that to the

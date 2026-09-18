@@ -18,6 +18,10 @@ FROM deps AS build
 WORKDIR /workspace
 COPY apps/payload apps/payload
 WORKDIR /workspace/apps/payload
+# Next inlines PAYLOAD_PUBLIC_URL into the admin client (serverURL / CSRF). Must match
+# the public nginx origin (no :3000) or login 200s then bounces back to /admin/login.
+ARG PAYLOAD_PUBLIC_URL=http://localhost:3000
+ENV PAYLOAD_PUBLIC_URL=$PAYLOAD_PUBLIC_URL
 RUN pnpm build
 
 FROM node:22-alpine AS runtime

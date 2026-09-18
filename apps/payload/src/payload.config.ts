@@ -24,7 +24,10 @@ import { storagePlugins } from './lib/storage'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-const serverURL = (process.env.PAYLOAD_PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '')
+// Dynamic lookup so Next does not inline an empty PAYLOAD_PUBLIC_URL at Docker build.
+const envOf = (key: string) => process.env[key]
+
+const serverURL = (envOf('PAYLOAD_PUBLIC_URL') || 'http://localhost:3000').replace(/\/$/, '')
 
 /** http://13.60.203.108 and http://13.60.203.108:80 are different Origins to CSRF. */
 const originVariants = (value?: string | null): string[] => {
@@ -34,7 +37,10 @@ const originVariants = (value?: string | null): string[] => {
   try {
     const url = new URL(trimmed)
     out.add(`${url.protocol}//${url.hostname}`)
-    if (url.protocol === 'http:') out.add(`${url.protocol}//${url.hostname}:80`)
+    if (url.protocol === 'http:') {
+      out.add(`${url.protocol}//${url.hostname}:80`)
+      out.add(`${url.protocol}//${url.hostname}:3000`)
+    }
     if (url.protocol === 'https:') out.add(`${url.protocol}//${url.hostname}:443`)
   } catch {
     /* ignore invalid URLs */
@@ -42,18 +48,18 @@ const originVariants = (value?: string | null): string[] => {
   return [...out]
 }
 
-// CSRF checks the browser Origin against this list before accepting the auth cookie.
-// The admin panel Origin (PAYLOAD_PUBLIC_URL) must be included or login silently fails.
-// Do not remove this list — the admin UI is same-origin, but Payload still CSRF-checks Origin.
+// After login Payload reads the JWT cookie only if Origin is on this list
+// (extractJWT). A miss looks like a successful login that bounces back to /admin/login.
 const trustedOrigins = [
   ...originVariants(serverURL),
-  ...originVariants(process.env.MOBILE_ORIGIN),
-  ...originVariants(process.env.PAYLOAD_CSRF_ORIGIN),
+  ...originVariants(envOf('MOBILE_ORIGIN')),
+  ...originVariants(envOf('PAYLOAD_CSRF_ORIGIN')),
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost',
+  'http://127.0.0.1',
   // Capacitor Android WebView origin when androidScheme is "https".
   'https://localhost',
   'capacitor://localhost',
