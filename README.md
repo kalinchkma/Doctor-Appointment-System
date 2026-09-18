@@ -89,8 +89,10 @@ pnpm docker:up
 
 | Service          | Address                                                  |
 | ---------------- | -------------------------------------------------------- |
-| Payload admin    | http://localhost:3000/admin                              |
-| Payload REST API | http://localhost:3000/api                                |
+| Payload admin    | http://localhost:3000/admin or http://localhost/admin (nginx) |
+| Payload REST API | http://localhost:3000/api or http://localhost/api (nginx)     |
+| nginx            | http://localhost  — public edge; does not expose Go RAG or Ollama |
+| Ollama (packed)  | `http://ollama:11434/v1` — llama3.2 + nomic-embed-text, Compose-only |
 | MongoDB          | mongodb://localhost:27017                                |
 | Go RAG service   | `http://rag:8080` — internal to the Compose network only |
 
@@ -105,6 +107,61 @@ curl http://localhost:8080/healthz
 Open http://localhost:3000/admin and create the first user; it is promoted to
 `admin` automatically. Every account created through the mobile app is a
 `patient`.
+
+## Deploy behind nginx
+
+nginx is the public edge. Payload stays on `:3000` on the Compose network; the
+Go RAG service and Ollama stay unpublished. `/api/internal/*` is denied at nginx so
+phones cannot hit the LLM/embed proxy.
+
+The stack **packs the default Ollama models** (`llama3.2` chat, `nomic-embed-text`
+embeddings) into a Compose `ollama` service. You do not install Ollama on the host.
+
+```bash
+./infrastructure/nginx/deploy.sh
+# or: pnpm docker:deploy
+```
+
+That builds/starts mongodb, redis, ollama, rag, cms, and nginx, pulls the two
+models on first boot, then waits until `http://127.0.0.1/healthz` responds.
+
+### EC2 Linux
+
+Use an instance with enough RAM for Atlas Local + llama3.2 on CPU — **t3.xlarge
+(16 GiB)** or larger, 30+ GiB disk. Security group: **22 and 80 only** (add 443
+later). Do not open 27017, 3000, 6379, 8080, or 11434.
+
+```bash
+# on the instance
+sudo yum install -y git   # Amazon Linux; Ubuntu: sudo apt-get install -y git
+git clone <this-repo>
+cd Doctor-Appointment-System
+cp .env.example .env
+# set secrets, then:
+#   PAYLOAD_PUBLIC_URL=http://<elastic-ip>
+#   OLLAMA_BASE_URL=http://ollama:11434/v1
+./infrastructure/nginx/deploy.sh --bootstrap --ec2
+```
+
+`--bootstrap` installs Docker Engine if needed. `--ec2` (also auto-detected on
+AWS) publishes **only nginx :80**. First boot downloads `llama3.2` and
+`nomic-embed-text` into the `ollama_models` volume (several minutes).
+
+Point the APK at nginx (no `:3000`):
+
+```bash
+# LAN
+echo "VITE_PAYLOAD_URL=http://$(ipconfig getifaddr en0)" > apps/mobile/.env
+# EC2: VITE_PAYLOAD_URL=http://<elastic-ip>
+# also set PAYLOAD_PUBLIC_URL to the same public URL in .env, then:
+pnpm --filter @doctor-app/mobile build:apk
+```
+
+Host nginx in front of an already-running CMS on `127.0.0.1:3000`:
+
+```bash
+./infrastructure/nginx/deploy.sh --host
+```
 
 ## Run services individually
 
@@ -137,14 +194,17 @@ Chat and embeddings are configured in **Payload Admin → RAG Settings**, not in
 calls Payload (`/api/internal/embeddings` and `/api/internal/chat/completions`);
 Payload holds the keys and talks to the chosen vendor.
 
-Defaults are local Ollama (no paid key):
+Defaults are packed Ollama (no paid key). Compose starts `ollama` and pulls
+`llama3.2` + `nomic-embed-text` on first boot (`OLLAMA_BASE_URL=http://ollama:11434/v1`).
+
+Host-only development (CMS on the laptop, not in Compose):
 
 ```bash
 brew install ollama
 ollama pull nomic-embed-text        # embeddings, 768 dimensions
 ollama pull llama3.2                # generation (fast default)
 # optional: ollama pull deepseek-r1:1.5b
-OLLAMA_HOST=0.0.0.0 ollama serve    # 0.0.0.0 so Compose containers can reach it
+ollama serve
 ```
 
 To switch providers, open RAG Settings and pick:
@@ -392,13 +452,9 @@ in Payload; the user sees a generic unavailable message.
 | Google Gemini | `gemini-2.0-flash` | `gemini-embedding-001` (768) |
 | OpenRouter | `openai/gpt-4o-mini` | `openai/text-embedding-3-small` (1536) |
 
-Ollama talks to `http://host.docker.internal:11434` from Docker (or
-`http://127.0.0.1:11434` on the host). Pull both models once:
-
-```bash
-ollama pull llama3.2
-ollama pull nomic-embed-text
-```
+In Compose, Payload talks to packed Ollama at `http://ollama:11434/v1`. Models
+are pulled by the `ollama-pull` service. Host-only CMS uses
+`http://127.0.0.1:11434/v1` after `ollama pull llama3.2 nomic-embed-text`.
 
 Greetings and setup questions (`hi`, `who are you`) go through the chat model
 as plain-text conversational turns. Medical questions still go through RAG.

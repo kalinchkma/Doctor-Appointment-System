@@ -60,7 +60,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Ollama: http://host.docker.internal:11434/v1 (Docker) or http://127.0.0.1:11434/v1 (host). Do not paste a full …/generateContent URL.',
+              'Leave blank for the provider default (Compose Ollama: http://ollama:11434/v1). OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Host Ollama: http://127.0.0.1:11434/v1. Do not paste a full …/generateContent URL.',
           },
         },
         {

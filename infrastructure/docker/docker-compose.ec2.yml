@@ -1,0 +1,22 @@
+# EC2 / Linux production overlay.
+# Usage: docker compose --env-file .env -f infrastructure/docker/docker-compose.yml \
+#          -f infrastructure/docker/docker-compose.ec2.yml up -d
+#
+# Only nginx :80 is published. Mongo, Redis, Payload :3000, and Ollama stay on the
+# Compose network. Security group should allow 22 and 80 (and 443 later), nothing else.
+
+services:
+  mongodb:
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  cms:
+    ports: !override []
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+
+  nginx:
+    ports:
+      - '80:80'
