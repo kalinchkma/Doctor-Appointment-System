@@ -87,6 +87,17 @@ require_env() {
   fi
 }
 
+warn_public_url() {
+  local url
+  url="$(grep -E '^PAYLOAD_PUBLIC_URL=' "$ROOT/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'")"
+  if [[ "$url" == *':3000'* ]]; then
+    echo "PAYLOAD_PUBLIC_URL is $url" >&2
+    echo "Behind nginx, drop :3000 (EC2 overlay does not publish Payload on 3000):" >&2
+    echo "  PAYLOAD_PUBLIC_URL=http://<elastic-ip>" >&2
+    echo "Then: recreate the cms container so Payload picks up the URL." >&2
+  fi
+}
+
 require_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     return 0
@@ -94,6 +105,34 @@ require_docker() {
   echo "Docker Engine + Compose v2 are required." >&2
   echo "Re-run with --bootstrap on Ubuntu/Amazon Linux, or install Docker manually." >&2
   exit 1
+}
+
+# Packed Ollama (~4 GiB image + ~2.5 GiB models) plus Atlas Local (JDK/mongot)
+# need far more than the default 8 GiB Ubuntu AMI volume.
+require_disk_space() {
+  local min_gb="${1:-20}"
+  local docker_root path avail_kb need_kb
+  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  path="${docker_root:-/var/lib/docker}"
+  [[ -d "$path" ]] || path="/"
+  avail_kb="$(df -Pk "$path" | awk 'NR==2 {print $4}')"
+  need_kb=$((min_gb * 1024 * 1024))
+  if [[ -z "$avail_kb" ]]; then
+    return 0
+  fi
+  if ((avail_kb < need_kb)); then
+    echo "Not enough disk for Atlas Local + packed Ollama." >&2
+    echo "Need ~${min_gb} GiB free on $path; have $((avail_kb / 1024 / 1024)) GiB." >&2
+    df -h "$path" >&2 || true
+    echo >&2
+    echo "The default Ubuntu AMI is 8 GiB. In AWS Console: EC2 → Volumes → this instance's" >&2
+    echo "root volume → Actions → Modify volume → 40 GiB. Then on the instance:" >&2
+    echo "  sudo growpart /dev/nvme0n1 1    # or /dev/xvda 1" >&2
+    echo "  sudo resize2fs /dev/nvme0n1p1   # or xfs_growfs /" >&2
+    echo "  sudo docker system prune -af    # drop the failed incomplete pull" >&2
+    echo "Then re-run: ./infrastructure/nginx/deploy.sh --ec2" >&2
+    exit 1
+  fi
 }
 
 cmd_bootstrap() {
@@ -171,7 +210,9 @@ wait_ollama_models() {
 
 cmd_up_docker() {
   require_env
+  warn_public_url
   require_docker
+  require_disk_space 20
   if [[ "$force_ec2" -eq 1 ]] || is_ec2; then
     echo "Starting EC2 stack (nginx :80 only; Ollama packed inside Compose)…"
   else

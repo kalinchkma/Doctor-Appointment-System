@@ -128,8 +128,11 @@ models on first boot, then waits until `http://127.0.0.1/healthz` responds.
 ### EC2 Linux
 
 Use an instance with enough RAM for Atlas Local + llama3.2 on CPU — **t3.xlarge
-(16 GiB)** or larger, 30+ GiB disk. Security group: **22 and 80 only** (add 443
-later). Do not open 27017, 3000, 6379, 8080, or 11434.
+(16 GiB RAM)** or larger. Resize the **root EBS volume to 40 GiB** before the
+first pull (Ubuntu AMIs default to 8 GiB, which is too small for the Ollama
+image + `llama3.2` + Atlas Local). After changing the volume in the AWS
+console, grow the filesystem (`growpart` + `resize2fs`). Security group: **22
+and 80 only** (add 443 later). Do not open 27017, 3000, 6379, 8080, or 11434.
 
 ```bash
 # on the instance
