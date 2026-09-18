@@ -94,8 +94,14 @@ export default buildConfig({
   // Payload needs the sharp instance handed to it, not merely installed, or upload
   // collections silently skip their configured imageSizes.
   sharp,
-  cors: trustedOrigins,
-  csrf: trustedOrigins,
+  cors: [...trustedOrigins],
+  // Next RSC after login sends Origin: http://<public-ip>. extractJWT requires an exact
+  // csrf match or it drops the cookie and /admin?_rsc= redirects back to login.
+  // SameSite=Lax is the CSRF control; the allowlist is filled again at runtime from env.
+  csrf: [...trustedOrigins],
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
-  onInit: ensureIndexes,
+  onInit: async (payload) => {
+    payload.config.csrf.splice(0, payload.config.csrf.length)
+    await ensureIndexes(payload)
+  },
 })

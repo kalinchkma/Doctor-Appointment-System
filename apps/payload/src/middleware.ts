@@ -27,8 +27,8 @@ export function middleware(request: NextRequest) {
   if (!from || from !== hostOf(host)) return NextResponse.next()
 
   const headers = new Headers(request.headers)
-  const publicUrl = (process.env.PAYLOAD_PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '')
-  headers.set('origin', publicUrl)
+  // Drop Origin so extractJWT falls through to Sec-Fetch-Site (same-origin RSC fetch).
+  headers.delete('origin')
   return NextResponse.next({ request: { headers } })
 }
 

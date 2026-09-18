@@ -1,5 +1,6 @@
 import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
 import { admins, adminsOrSelf, anyone } from '../../access'
+import { cookieJwtStrategy } from '../../lib/auth/cookieJwtStrategy'
 
 // Add user-specific hooks to this module as the feature grows.
 const makeFirstUserAdmin: CollectionBeforeChangeHook = async ({ data, operation, req }) => {
@@ -24,6 +25,7 @@ export const Users: CollectionConfig = {
     // Session rows are hidden unless req.user is already set, so JWT sid checks
     // fail on the post-login /admin?_rsc= request. Token cookie is enough here.
     useSessions: false,
+    strategies: [cookieJwtStrategy],
   },
   admin: { useAsTitle: 'name' },
   access: {
