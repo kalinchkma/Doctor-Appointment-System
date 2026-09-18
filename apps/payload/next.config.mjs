@@ -27,10 +27,10 @@ const nextConfig = {
   // Next 16 writes AGENTS.md and CLAUDE.md into the app directory on boot. This project
   // keeps its guidance in docs/, so the generated files would only be noise in git.
   agentRules: false,
-  // Admin login uses server functions. Behind nginx the browser Origin is the public
-  // host, not cms:3000 — without this, login 200s then redirects back to /admin/login.
-  serverActions: {
-    allowedOrigins: [publicHost, 'localhost:3000', '127.0.0.1:3000', 'localhost'],
+  experimental: {
+    serverActions: {
+      allowedOrigins: [publicHost, 'localhost:3000', '127.0.0.1:3000', 'localhost'],
+    },
   },
 }
 

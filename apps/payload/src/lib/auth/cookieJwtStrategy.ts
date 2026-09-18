@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { AuthStrategy } from 'payload'
+import type { AuthStrategy, AuthStrategyResult, TypedUser } from 'payload'
 import { parseCookies } from 'payload'
 
 function verifyHs256(token: string, secret: string): Record<string, unknown> | null {
@@ -29,28 +29,32 @@ function verifyHs256(token: string, secret: string): Record<string, unknown> | n
  */
 export const cookieJwtStrategy: AuthStrategy = {
   name: 'cookie-jwt',
-  authenticate: async ({ headers, payload }) => {
+  authenticate: async ({ headers, payload }): Promise<AuthStrategyResult> => {
     const token = parseCookies(headers).get(`${payload.config.cookiePrefix}-token`)
     if (!token) return { user: null }
 
     const decoded = verifyHs256(token, payload.secret)
     const id = decoded?.id
-    const collection = decoded?.collection
-    if (typeof id !== 'string' && typeof id !== 'number') return { user: null }
-    if (typeof collection !== 'string' || !payload.collections[collection]) return { user: null }
+    if (decoded?.collection !== 'users' || (typeof id !== 'string' && typeof id !== 'number')) {
+      return { user: null }
+    }
 
     try {
       const user = await payload.findByID({
         id,
-        collection,
+        collection: 'users',
         depth: 0,
         overrideAccess: true,
         showHiddenFields: true,
       })
       if (!user) return { user: null }
-      user.collection = collection
-      user._strategy = 'cookie-jwt'
-      return { user }
+      return {
+        user: {
+          ...user,
+          collection: 'users',
+          _strategy: 'cookie-jwt',
+        } as TypedUser,
+      }
     } catch {
       return { user: null }
     }
