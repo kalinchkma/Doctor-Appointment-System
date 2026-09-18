@@ -17,7 +17,7 @@ export function AuthLayout({ title, subtitle, children }: Props) {
             <h1>{title}</h1>
             <p className="intro">{subtitle}</p>
           </section>
-          <ServerStatus />
+          {/* <ServerStatus /> */}
           <IonCard>
             <IonCardContent>{children}</IonCardContent>
           </IonCard>
