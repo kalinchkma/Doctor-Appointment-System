@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
   const env = { ...rootEnv, ...mobileEnv }
 
   const payloadURL = (env.VITE_PAYLOAD_URL || 'http://localhost:3000').replace(/\/$/, '')
+  console.info(`[vite] bundling API base ${payloadURL}`)
 
   return {
     plugins: [react()],

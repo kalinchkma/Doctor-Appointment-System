@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:apk": "pnpm build && capacitor sync android && cd android && ./gradlew assembleDebug",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "cap:sync": "capacitor sync",

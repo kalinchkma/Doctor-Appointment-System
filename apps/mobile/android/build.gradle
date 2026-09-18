@@ -24,6 +24,19 @@ allprojects {
     }
 }
 
+// Capacitor 8 compiles Java 21. If the Gradle daemon is JDK 17 (common on
+// macOS with only Zulu 17), javac fails with "invalid source release: 21".
+// Foojay in settings.gradle provisions a 21 toolchain for every compile task.
+subprojects {
+    afterEvaluate {
+        tasks.withType(JavaCompile).configureEach {
+            javaCompiler = javaToolchains.compilerFor {
+                languageVersion = JavaLanguageVersion.of(21)
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

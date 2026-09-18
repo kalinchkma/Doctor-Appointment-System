@@ -174,18 +174,19 @@ pnpm --filter @doctor-app/mobile cap:sync
 pnpm --filter @doctor-app/mobile run:android
 ```
 
-Build the debug APK:
+Build the debug APK. `capacitor-cordova-android-plugins/` is generated and
+gitignored, so Gradle fails with a missing `cordova.variables.gradle` unless
+you run `cap:sync` first.
 
-Install java 
-```bash
-sudo apt update
-sudo apt install openjdk-21-jdk
-```
+`VITE_PAYLOAD_URL` is compiled into the JS bundle. Editing `.env` and only
+running `./gradlew assembleDebug` keeps the old URL. Rebuild and sync first,
+or use `pnpm --filter @doctor-app/mobile build:apk`.
 
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+echo "VITE_PAYLOAD_URL=http://192.168.0.102:3000" > apps/mobile/.env
+pnpm --filter @doctor-app/mobile build
+pnpm --filter @doctor-app/mobile cap:sync
 (cd apps/mobile/android && ./gradlew assembleDebug)
-# → apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 For a physical device, substitute your machine's LAN address

@@ -1,0 +1,14 @@
+{
+  "appId": "com.doctorapp.careconnect",
+  "appName": "CareConnect",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

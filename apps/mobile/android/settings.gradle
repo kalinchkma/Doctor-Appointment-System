@@ -1,3 +1,8 @@
+plugins {
+    // Lets Gradle download JDK 21 for Capacitor 8 even if the machine only has 17.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
+}
+
 include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
