@@ -21,6 +21,9 @@ export const Users: CollectionConfig = {
       sameSite: 'Lax',
       secure: false,
     },
+    // Session rows are hidden unless req.user is already set, so JWT sid checks
+    // fail on the post-login /admin?_rsc= request. Token cookie is enough here.
+    useSessions: false,
   },
   admin: { useAsTitle: 'name' },
   access: {

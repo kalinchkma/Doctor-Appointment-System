@@ -5,6 +5,8 @@ import type { ServerFunctionClient } from 'payload'
 import type { ReactNode } from 'react'
 import { importMap } from './admin/importMap'
 
+export const dynamic = 'force-dynamic'
+
 const serverFunction: ServerFunctionClient = async function (args) {
   'use server'
   return handleServerFunctions({ ...args, config, importMap })
