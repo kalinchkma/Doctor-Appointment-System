@@ -26,12 +26,29 @@ const dirname = path.dirname(filename)
 
 const serverURL = (process.env.PAYLOAD_PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '')
 
+/** http://13.60.203.108 and http://13.60.203.108:80 are different Origins to CSRF. */
+const originVariants = (value?: string | null): string[] => {
+  if (!value) return []
+  const trimmed = value.replace(/\/$/, '')
+  const out = new Set<string>([trimmed])
+  try {
+    const url = new URL(trimmed)
+    out.add(`${url.protocol}//${url.hostname}`)
+    if (url.protocol === 'http:') out.add(`${url.protocol}//${url.hostname}:80`)
+    if (url.protocol === 'https:') out.add(`${url.protocol}//${url.hostname}:443`)
+  } catch {
+    /* ignore invalid URLs */
+  }
+  return [...out]
+}
+
 // CSRF checks the browser Origin against this list before accepting the auth cookie.
-// The admin panel Origin (PAYLOAD_PUBLIC_URL) must be included or logout/login cookie
-// flows from /admin silently fail — cookie JWT extraction returns null.
+// The admin panel Origin (PAYLOAD_PUBLIC_URL) must be included or login silently fails.
+// Do not remove this list — the admin UI is same-origin, but Payload still CSRF-checks Origin.
 const trustedOrigins = [
-  serverURL,
-  process.env.MOBILE_ORIGIN,
+  ...originVariants(serverURL),
+  ...originVariants(process.env.MOBILE_ORIGIN),
+  ...originVariants(process.env.PAYLOAD_CSRF_ORIGIN),
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
