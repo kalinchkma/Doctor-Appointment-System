@@ -121,12 +121,26 @@ export type ChatSuggestedQuestion = {
   active: boolean
 }
 
+export type ClinicThreadRole = 'patient' | 'staff'
+
+export type ClinicThreadMessage = {
+  role: ClinicThreadRole
+  body: string
+  createdAt: string
+}
+
 /** Patient-visible unresolved query. Clinic answers live here, not in RAG chat. */
 export type ClinicReply = {
   id: string
   question: string
   status: 'new' | 'resolved'
   humanResponse: string | null
+  lastBody?: string | null
+  lastRole?: ClinicThreadRole | null
+  waitingOn?: 'staff' | 'patient'
+  messageCount?: number
+  messages?: ClinicThreadMessage[]
   createdAt: string
+  updatedAt?: string
   resolvedAt: string | null
 }

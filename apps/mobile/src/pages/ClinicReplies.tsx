@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   IonBadge,
   IonCard,
@@ -11,6 +11,7 @@ import {
   IonSegmentButton,
   type RefresherEventDetail,
 } from '@ionic/react'
+import { useNavigate } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor } from '../hooks/useAsync'
@@ -20,7 +21,13 @@ import type { ClinicReply } from '../types'
 
 type Filter = 'waiting' | 'answered'
 
+function isWaiting(item: ClinicReply): boolean {
+  if (item.waitingOn) return item.waitingOn === 'staff'
+  return !item.humanResponse
+}
+
 export function ClinicReplies() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('answered')
   const [items, setItems] = useState<ClinicReply[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,15 +60,23 @@ export function ClinicReplies() {
   const { waiting, answered } = useMemo(() => {
     const list = items ?? []
     return {
-      waiting: list.filter((item) => item.status === 'new'),
-      answered: list.filter((item) => item.status === 'resolved' && Boolean(item.humanResponse)),
+      waiting: list.filter(isWaiting),
+      answered: list.filter((item) => !isWaiting(item)),
     }
   }, [items])
 
+  const prevAnsweredCount = useRef(0)
+  const didInitFilter = useRef(false)
   useEffect(() => {
     if (!items) return
-    if (answered.length === 0 && waiting.length > 0) setFilter('waiting')
-  }, [items, answered.length, waiting.length])
+    if (!didInitFilter.current) {
+      didInitFilter.current = true
+      setFilter(answered.length > 0 ? 'answered' : 'waiting')
+    } else if (answered.length > prevAnsweredCount.current) {
+      setFilter('answered')
+    }
+    prevAnsweredCount.current = answered.length
+  }, [items, answered.length])
 
   const visible = filter === 'waiting' ? waiting : answered
 
@@ -100,8 +115,8 @@ export function ClinicReplies() {
 
         <div className="appointments-content">
           <p className="clinic-replies-intro">
-            When the assistant cannot answer from clinic documents, the question lands here. A
-            clinician replies on this tab — not in the healthcare chat.
+            Questions the assistant could not answer. Open a thread to chat with a clinician — this
+            is separate from the healthcare assistant.
           </p>
           <AsyncContent
             loading={loading}
@@ -115,43 +130,35 @@ export function ClinicReplies() {
             onRetry={() => void load()}
           >
             {visible.map((item) => (
-              <ReplyCard key={item.id} item={item} />
+              <IonCard
+                key={item.id}
+                button
+                className="appointment-card-v2 clinic-reply-card"
+                onClick={() => navigate(`/clinic-replies/${item.id}`)}
+              >
+                <IonCardContent>
+                  <div className="appointment-card-header">
+                    <IonBadge color={isWaiting(item) ? 'warning' : 'success'} className="status-badge">
+                      {isWaiting(item) ? 'Waiting' : 'Clinic replied'}
+                    </IonBadge>
+                    <span className="clinic-reply-date">
+                      {item.updatedAt || item.resolvedAt || item.createdAt
+                        ? formatDateTime(item.updatedAt || item.resolvedAt || item.createdAt)
+                        : ''}
+                    </span>
+                  </div>
+                  <p className="clinic-reply-question">{item.question}</p>
+                  <p className="clinic-reply-pending">
+                    {item.lastBody
+                      ? `${item.lastRole === 'staff' ? 'Clinic' : 'You'}: ${item.lastBody}`
+                      : 'Open to chat with the clinic.'}
+                  </p>
+                </IonCardContent>
+              </IonCard>
             ))}
           </AsyncContent>
         </div>
       </IonContent>
     </IonPage>
-  )
-}
-
-function ReplyCard({ item }: { item: ClinicReply }) {
-  const answered = item.status === 'resolved' && item.humanResponse
-
-  return (
-    <IonCard className="appointment-card-v2 clinic-reply-card">
-      <IonCardContent>
-        <div className="appointment-card-header">
-          <IonBadge color={answered ? 'success' : 'warning'} className="status-badge">
-            {answered ? 'Answered' : 'Waiting'}
-          </IonBadge>
-          <span className="clinic-reply-date">
-            {answered && item.resolvedAt
-              ? formatDateTime(item.resolvedAt)
-              : item.createdAt
-                ? formatDateTime(item.createdAt)
-                : ''}
-          </span>
-        </div>
-        <p className="clinic-reply-question">{item.question}</p>
-        {answered ? (
-          <div className="clinic-reply-answer">
-            <p className="staff-label">Clinic reply</p>
-            <p>{item.humanResponse}</p>
-          </div>
-        ) : (
-          <p className="clinic-reply-pending">Submitted for a clinician to review.</p>
-        )}
-      </IonCardContent>
-    </IonCard>
   )
 }

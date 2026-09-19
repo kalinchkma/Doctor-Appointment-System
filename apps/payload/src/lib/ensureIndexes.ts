@@ -1,5 +1,5 @@
 import type { Payload } from 'payload'
-import { normalizeQuestionKey } from './unresolvedQueries'
+import { hydrateClinicThread, normalizeQuestionKey } from './unresolvedQueries'
 
 /**
  * Declares the database constraints that Payload's field-level `index: true` cannot
@@ -96,6 +96,46 @@ export async function ensureIndexes(payload: Payload): Promise<void> {
 
     if (missingKey.length > 0) {
       payload.logger.info(`backfilled questionKey on ${missingKey.length} unresolved queries`)
+    }
+
+    const published = await unresolved.updateMany(
+      {
+        status: 'new',
+        humanResponse: { $exists: true, $nin: [null, ''] },
+      },
+      {
+        $set: {
+          status: 'resolved',
+          resolvedAt: new Date(),
+          deliveredAt: new Date(),
+        },
+      },
+    )
+    if (published.modifiedCount > 0) {
+      payload.logger.info(
+        `marked ${published.modifiedCount} clinic replies resolved (humanResponse already present)`,
+      )
+    }
+
+    const missingThread = await unresolved
+      .find({
+        $or: [{ thread: { $exists: false } }, { thread: { $size: 0 } }],
+      })
+      .toArray()
+
+    for (const doc of missingThread) {
+      const thread = hydrateClinicThread({
+        question: typeof doc.question === 'string' ? doc.question : '',
+        humanResponse: typeof doc.humanResponse === 'string' ? doc.humanResponse : null,
+        createdAt: doc.createdAt ? new Date(doc.createdAt as Date | string).toISOString() : null,
+        resolvedAt: doc.resolvedAt ? new Date(doc.resolvedAt as Date | string).toISOString() : null,
+        user: doc.user,
+      })
+      if (thread.length === 0) continue
+      await unresolved.updateOne({ _id: doc._id }, { $set: { thread } })
+    }
+    if (missingThread.length > 0) {
+      payload.logger.info(`backfilled clinic thread on ${missingThread.length} unresolved queries`)
     }
   }
 

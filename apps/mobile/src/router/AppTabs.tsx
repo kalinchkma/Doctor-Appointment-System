@@ -16,6 +16,7 @@ import { AppointmentDetails } from '../pages/AppointmentDetails'
 import { MyAppointments } from '../pages/MyAppointments'
 import { Chat } from '../pages/Chat'
 import { ClinicReplies } from '../pages/ClinicReplies'
+import { ClinicReplyThread } from '../pages/ClinicReplyThread'
 
 /**
  * Primary app shell: Home / Doctors / Appointments / Assistant / Clinic replies.
@@ -42,6 +43,7 @@ export function AppTabs() {
           <Route path="/appointments/:appointmentId" element={<AppointmentDetails />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/clinic-replies" element={<ClinicReplies />} />
+          <Route path="/clinic-replies/:queryId" element={<ClinicReplyThread />} />
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>

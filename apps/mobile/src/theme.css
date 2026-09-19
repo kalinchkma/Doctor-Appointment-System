@@ -1598,6 +1598,11 @@
   border: 1px solid #e6c48a;
 }
 
+.bubble.staff {
+  background: #eef7f1;
+  border: 1px solid #9bc9b0;
+}
+
 .clinic-replies-intro {
   margin: 0 0 16px;
   color: var(--app-muted);

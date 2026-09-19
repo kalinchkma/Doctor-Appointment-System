@@ -9,7 +9,14 @@ import {
   requireOwnedSession,
   resetChatSession,
 } from '../lib/chatSessions'
-import { listClinicRepliesForUser, recordUnresolvedQuery, shouldRecordUnresolved } from '../lib/unresolvedQueries'
+import {
+  appendClinicThreadMessage,
+  findOwnedClinicQuery,
+  listClinicRepliesForUser,
+  recordUnresolvedQuery,
+  shouldRecordUnresolved,
+  toPublicClinicReply,
+} from '../lib/unresolvedQueries'
 import { askRag, isRagProviderError, isRagUnavailable } from '../services/rag'
 
 const questionSchema = z.object({
@@ -268,6 +275,22 @@ export const chatEndpoint: Endpoint = {
   },
 }
 
+const clinicMessageSchema = z.object({
+  content: z
+    .string({ error: 'A message is required.' })
+    .trim()
+    .min(1, 'A message is required.')
+    .max(2000, 'Messages must be 2000 characters or fewer.'),
+})
+
+function clinicReplyIdFromReq(req: PayloadRequest): string {
+  const fromParams = req.routeParams?.id
+  if (fromParams != null && String(fromParams).length > 0) return String(fromParams)
+  const path = req.pathname || req.url || ''
+  const match = path.match(/\/chat\/clinic-replies\/([^/?#]+)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
+}
+
 const clinicReplies: Endpoint = {
   path: '/chat/clinic-replies',
   method: 'get',
@@ -282,11 +305,67 @@ const clinicReplies: Endpoint = {
   },
 }
 
+const clinicReply: Endpoint = {
+  path: '/chat/clinic-replies/:id',
+  method: 'get',
+  handler: async (req) => {
+    try {
+      const user = requireUser(req)
+      const id = clinicReplyIdFromReq(req)
+      if (!id) throw errors.invalidInput('A clinic reply id is required.')
+      const doc = await findOwnedClinicQuery(req.payload, id, String(user.id))
+      if (!doc) {
+        throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
+      }
+      return json(toPublicClinicReply(doc))
+    } catch (error) {
+      return toErrorResponse(error, req.payload, 'chat.clinicReply.get')
+    }
+  },
+}
+
+const clinicReplyMessage: Endpoint = {
+  path: '/chat/clinic-replies/:id/messages',
+  method: 'post',
+  handler: async (req) => {
+    try {
+      const user = requireUser(req)
+      if (rateLimited(String(user.id))) {
+        throw new ApiError(ErrorCode.INVALID_INPUT, 429, 'Please wait a moment before sending again.')
+      }
+      const id = clinicReplyIdFromReq(req)
+      if (!id) throw errors.invalidInput('A clinic reply id is required.')
+
+      const owned = await findOwnedClinicQuery(req.payload, id, String(user.id))
+      if (!owned) {
+        throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
+      }
+
+      const parsed = clinicMessageSchema.safeParse(await readJsonBody(req))
+      if (!parsed.success) {
+        throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
+      }
+
+      const next = await appendClinicThreadMessage(req.payload, {
+        queryId: id,
+        role: 'patient',
+        body: parsed.data.content,
+        authorId: String(user.id),
+      })
+      return json(next)
+    } catch (error) {
+      return toErrorResponse(error, req.payload, 'chat.clinicReply.message')
+    }
+  },
+}
+
 export const chatEndpoints: Endpoint[] = [
   createSession,
   activeSession,
   getSession,
   resetSession,
+  clinicReplyMessage,
+  clinicReply,
   clinicReplies,
   chatEndpoint,
 ]

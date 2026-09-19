@@ -390,6 +390,15 @@ export interface UnresolvedQuery {
   user: string | User;
   sessionId?: string | null;
   status: 'new' | 'resolved';
+  thread?:
+    | {
+        role: 'patient' | 'staff';
+        body: string;
+        author?: (string | null) | User;
+        createdAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   humanResponse?: string | null;
   /**
    * Why the sufficiency gates declined to answer.
@@ -703,6 +712,7 @@ export interface UnresolvedQueriesSelect<T extends boolean = true> {
   user?: T;
   sessionId?: T;
   status?: T;
+  thread?: T;
   humanResponse?: T;
   retrievalReason?: T;
   topScore?: T;

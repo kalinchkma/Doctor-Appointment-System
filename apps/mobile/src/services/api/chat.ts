@@ -31,6 +31,11 @@ export async function listClinicReplies(): Promise<ClinicReply[]> {
   return result.docs ?? []
 }
 
+export const getClinicReply = (id: string) => get<ClinicReply>(`/api/chat/clinic-replies/${id}`)
+
+export const sendClinicReplyMessage = (id: string, content: string) =>
+  post<ClinicReply>(`/api/chat/clinic-replies/${id}/messages`, { content })
+
 type SuggestedList = {
   docs: ChatSuggestedQuestion[]
 }

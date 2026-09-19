@@ -1,9 +1,18 @@
-import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig, Endpoint } from 'payload'
 import { APIError } from 'payload'
+import { z } from 'zod'
 import { admins } from '../../access'
-import { normalizeQuestionKey } from '../../lib/unresolvedQueries'
+import { errors, json, toErrorResponse } from '../../lib/errors'
+import {
+  appendClinicThreadMessage,
+  clinicThreadMessage,
+  hydrateClinicThread,
+  lastStaffBody,
+  lastThreadMessage,
+  normalizeQuestionKey,
+} from '../../lib/unresolvedQueries'
 
-const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc, operation }) => {
+const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc }) => {
   if (!data) return data
 
   const question = String(data.question ?? originalDoc?.question ?? '')
@@ -11,12 +20,45 @@ const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc, o
     data.questionKey = normalizeQuestionKey(question)
   }
 
-  const nextStatus = String(data.status ?? originalDoc?.status ?? 'new')
-  const humanResponse = String(data.humanResponse ?? originalDoc?.humanResponse ?? '').trim()
+  const merged = {
+    question,
+    humanResponse: data.humanResponse ?? originalDoc?.humanResponse,
+    thread: data.thread ?? originalDoc?.thread,
+    createdAt: originalDoc?.createdAt,
+    resolvedAt: data.resolvedAt ?? originalDoc?.resolvedAt,
+    user: data.user ?? originalDoc?.user,
+  }
 
-  if (nextStatus === 'resolved' && !humanResponse) {
+  let thread = hydrateClinicThread(merged)
+  const typedReply = String(data.humanResponse ?? '').trim()
+  const lastStaff = lastStaffBody(thread)
+  if (typedReply && typedReply !== lastStaff) {
+    thread = [
+      ...thread,
+      clinicThreadMessage('staff', typedReply, req.user?.id ? String(req.user.id) : null),
+    ]
+  }
+
+  data.thread = thread
+
+  const last = lastThreadMessage(thread)
+  const staffBody = lastStaffBody(thread)
+  if (staffBody) {
+    data.humanResponse = staffBody
+  }
+
+  let nextStatus = String(data.status ?? originalDoc?.status ?? 'new')
+  if (last?.role === 'staff') {
+    data.status = 'resolved'
+    nextStatus = 'resolved'
+  } else if (last?.role === 'patient') {
+    data.status = 'new'
+    nextStatus = 'new'
+  }
+
+  if (nextStatus === 'resolved' && !staffBody) {
     throw new APIError(
-      'Add a clinic reply before marking this question resolved. The patient will see it under Clinic replies.',
+      'Send a clinic reply in the thread before marking this resolved.',
       400,
       undefined,
       true,
@@ -32,25 +74,78 @@ const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc, o
     }
   }
 
-  if (operation === 'update' && nextStatus === 'new' && originalDoc?.status === 'resolved') {
+  if (nextStatus === 'new' && originalDoc?.status === 'resolved') {
     data.resolvedAt = null
-    data.reviewedBy = null
-    data.deliveredAt = null
   }
 
   return data
+}
+
+const messageSchema = z.object({
+  content: z
+    .string({ error: 'A message is required.' })
+    .trim()
+    .min(1, 'A message is required.')
+    .max(2000, 'Messages must be 2000 characters or fewer.'),
+})
+
+function queryIdFromReq(req: { routeParams?: { id?: unknown }; pathname?: string; url?: string }) {
+  const fromParams = req.routeParams?.id
+  if (fromParams != null && String(fromParams).length > 0) return String(fromParams)
+  const path = req.pathname || req.url || ''
+  const match = path.match(/\/unresolved-queries\/([^/?#]+)\/messages/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
+}
+
+const adminReply: Endpoint = {
+  path: '/:id/messages',
+  method: 'post',
+  handler: async (req) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        throw errors.forbidden()
+      }
+      const id = queryIdFromReq(req)
+      if (!id) throw errors.invalidInput('A query id is required.')
+
+      let body: unknown = req.data
+      if (typeof req.json === 'function') {
+        try {
+          const parsed = await req.json()
+          if (parsed !== undefined) body = parsed
+        } catch {
+          /* use req.data */
+        }
+      }
+      const parsed = messageSchema.safeParse(body)
+      if (!parsed.success) {
+        throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
+      }
+
+      const next = await appendClinicThreadMessage(req.payload, {
+        queryId: id,
+        role: 'staff',
+        body: parsed.data.content,
+        authorId: String(req.user.id),
+      })
+      return json(next)
+    } catch (error) {
+      return toErrorResponse(error, req.payload, 'unresolved.adminReply')
+    }
+  },
 }
 
 export const UnresolvedQueries: CollectionConfig = {
   slug: 'unresolved-queries',
   admin: {
     useAsTitle: 'question',
-    defaultColumns: ['question', 'user', 'status', 'retrievalReason', 'createdAt'],
+    defaultColumns: ['question', 'user', 'status', 'updatedAt'],
     listSearchableFields: ['question', 'humanResponse'],
     description:
-      'Questions the assistant could not answer from the knowledge base. Type a clinic reply and mark Resolved — the patient sees it on the Clinic replies tab, not in the RAG chat.',
+      'Questions the assistant could not answer. Chat with the patient in the thread — they reply on the Clinic replies tab.',
   },
   timestamps: true,
+  endpoints: [adminReply],
   hooks: { beforeChange: [stampResolution] },
   access: { create: () => false, read: admins, update: admins, delete: admins },
   fields: [
@@ -68,7 +163,7 @@ export const UnresolvedQueries: CollectionConfig = {
       index: true,
       admin: {
         readOnly: true,
-        description: 'Chat session that submitted this question (for admin context only).',
+        description: 'RAG chat session that submitted this question.',
       },
     },
     {
@@ -76,16 +171,44 @@ export const UnresolvedQueries: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'new',
-      options: ['new', 'resolved'],
+      options: [
+        { label: 'Waiting for clinic', value: 'new' },
+        { label: 'Clinic replied', value: 'resolved' },
+      ],
       admin: {
-        description: 'Resolved requires a clinic reply. That reply appears on the patient’s Clinic replies tab.',
+        description: 'Follows the last thread message. A patient reply opens it again.',
       },
+    },
+    {
+      name: 'thread',
+      type: 'array',
+      admin: {
+        description: 'Conversation with the patient. Send a message here; they see it under Clinic replies.',
+        components: {
+          Field: '/components/ClinicThreadField#ClinicThreadField',
+        },
+      },
+      fields: [
+        {
+          name: 'role',
+          type: 'select',
+          required: true,
+          options: [
+            { label: 'Patient', value: 'patient' },
+            { label: 'Clinic', value: 'staff' },
+          ],
+        },
+        { name: 'body', type: 'textarea', required: true },
+        { name: 'author', type: 'relationship', relationTo: 'users' },
+        { name: 'createdAt', type: 'date' },
+      ],
     },
     {
       name: 'humanResponse',
       type: 'textarea',
       admin: {
-        description: 'Required to resolve. Shown on the patient’s Clinic replies tab, not in the assistant chat.',
+        hidden: true,
+        description: 'Latest clinic message. Kept for list preview and older mobile clients.',
       },
     },
     {
@@ -103,10 +226,7 @@ export const UnresolvedQueries: CollectionConfig = {
     {
       name: 'deliveredAt',
       type: 'date',
-      admin: {
-        readOnly: true,
-        description: 'When the clinic reply became visible on the patient’s Clinic replies tab.',
-      },
+      admin: { hidden: true },
     },
     {
       name: 'reviewedBy',
