@@ -16,6 +16,8 @@ export type ChatSessionMessage = {
   role: ChatRole
   content: string
   grounded?: boolean
+  /** Clinic staff reply written from Unresolved Queries, not the RAG model. */
+  fromStaff?: boolean
   sources?: ChatSessionSource[]
   createdAt: string
 }
@@ -124,5 +126,7 @@ export async function resetChatSession(sessionId: string, userId: string): Promi
 export function historyForRag(
   session: ChatSession,
 ): { role: ChatRole; content: string }[] {
-  return session.messages.map(({ role, content }) => ({ role, content }))
+  return session.messages
+    .filter((message) => !message.fromStaff)
+    .map(({ role, content }) => ({ role, content }))
 }

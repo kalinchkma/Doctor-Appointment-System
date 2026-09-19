@@ -9,6 +9,7 @@ import {
   requireOwnedSession,
   resetChatSession,
 } from '../lib/chatSessions'
+import { listClinicRepliesForUser, recordUnresolvedQuery, shouldRecordUnresolved } from '../lib/unresolvedQueries'
 import { askRag, isRagProviderError, isRagUnavailable } from '../services/rag'
 
 const questionSchema = z.object({
@@ -95,13 +96,15 @@ function publicSession(session: Awaited<ReturnType<typeof createChatSession>>) {
     id: session.id,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
-    messages: session.messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-      grounded: message.grounded,
-      sources: message.sources ?? [],
-      createdAt: message.createdAt,
-    })),
+    messages: session.messages
+      .filter((message) => !message.fromStaff)
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        grounded: message.grounded,
+        sources: message.sources ?? [],
+        createdAt: message.createdAt,
+      })),
   }
 }
 
@@ -219,7 +222,17 @@ export const chatEndpoint: Endpoint = {
       )
 
       if (!result.sufficient && shouldRecordUnresolved(result.reason)) {
-        await recordUnresolved(req, parsed.data.question, result.reason, result.topScore)
+        try {
+          await recordUnresolvedQuery(payload, {
+            userId: String(user.id),
+            question: parsed.data.question,
+            sessionId: session.id,
+            reason: result.reason,
+            topScore: result.topScore,
+          })
+        } catch (error) {
+          payload.logger.error({ err: error }, 'failed to record unresolved query')
+        }
       }
 
       const now = new Date().toISOString()
@@ -255,37 +268,18 @@ export const chatEndpoint: Endpoint = {
   },
 }
 
-async function recordUnresolved(
-  req: PayloadRequest,
-  question: string,
-  reason?: string,
-  topScore?: number,
-) {
-  try {
-    await req.payload.create({
-      collection: 'unresolved-queries',
-      overrideAccess: true,
-      data: {
-        question,
-        user: req.user!.id,
-        status: 'new',
-        retrievalReason: (reason as
-          | 'no_results'
-          | 'below_threshold'
-          | 'low_coverage'
-          | 'llm_declined'
-          | undefined) || null,
-        topScore: typeof topScore === 'number' ? topScore : null,
-      },
-    })
-  } catch (error) {
-    req.payload.logger.error({ err: error }, 'failed to record unresolved query')
-  }
-}
-
-function shouldRecordUnresolved(reason?: string): boolean {
-  // Pure greetings / identity are intentional, not missing knowledge coverage.
-  return reason !== 'greeting' && reason !== 'identity' && reason !== 'off_topic'
+const clinicReplies: Endpoint = {
+  path: '/chat/clinic-replies',
+  method: 'get',
+  handler: async (req) => {
+    try {
+      const user = requireUser(req)
+      const docs = await listClinicRepliesForUser(req.payload, String(user.id))
+      return json({ docs })
+    } catch (error) {
+      return toErrorResponse(error, req.payload, 'chat.clinicReplies')
+    }
+  },
 }
 
 export const chatEndpoints: Endpoint[] = [
@@ -293,5 +287,6 @@ export const chatEndpoints: Endpoint[] = [
   activeSession,
   getSession,
   resetSession,
+  clinicReplies,
   chatEndpoint,
 ]

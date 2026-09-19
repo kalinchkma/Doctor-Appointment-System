@@ -14,6 +14,7 @@ import {
   IonToolbar,
 } from '@ionic/react'
 import { createOutline, send } from 'ionicons/icons'
+import { useNavigate } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor } from '../hooks/useAsync'
 import {
@@ -43,8 +44,9 @@ const greeting: Message = {
 }
 
 function fromSessionMessages(messages: ChatSessionMessage[]): Message[] {
-  if (messages.length === 0) return [greeting]
-  return messages.map((message, index) => ({
+  const ragOnly = messages.filter((message) => !message.fromStaff)
+  if (ragOnly.length === 0) return [greeting]
+  return ragOnly.map((message, index) => ({
     id: `s-${index}-${message.createdAt}`,
     author: message.role === 'user' ? 'user' : 'assistant',
     text: message.content,
@@ -54,6 +56,7 @@ function fromSessionMessages(messages: ChatSessionMessage[]): Message[] {
 }
 
 export function Chat() {
+  const navigate = useNavigate()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([greeting])
   const [question, setQuestion] = useState('')
@@ -223,6 +226,16 @@ export function Chat() {
                 className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
               >
                 <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
+                {message.fallback && (
+                  <IonButton
+                    fill="outline"
+                    size="small"
+                    className="chat-retry"
+                    onClick={() => navigate('/clinic-replies')}
+                  >
+                    Open Clinic replies
+                  </IonButton>
+                )}
                 {message.failed && (
                   <IonButton
                     fill="outline"

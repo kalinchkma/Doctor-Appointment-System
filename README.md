@@ -513,7 +513,9 @@ closed to clients) and stores `retrievalReason` plus `topScore` so the admin
 list is a tuning tool, not just a inbox.
 
 Admins open **Unresolved Queries**, type a `humanResponse`, and flip status to
-`resolved`. A `beforeChange` hook stamps `resolvedAt` and `reviewedBy`.
+`resolved`. A `beforeChange` hook stamps `resolvedAt`, `deliveredAt`, and
+`reviewedBy`. The patient sees that reply on the mobile **Clinic replies** tab
+(`GET /api/chat/clinic-replies`). The RAG chat session is left untouched.
 
 If the Go service is down or the LLM provider fails, the user gets HTTP 503/502
 with a safe message and **no** unresolved row is written — that path is an

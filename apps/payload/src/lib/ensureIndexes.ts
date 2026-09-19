@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { normalizeQuestionKey } from './unresolvedQueries'
 
 /**
  * Declares the database constraints that Payload's field-level `index: true` cannot
@@ -71,6 +72,31 @@ export async function ensureIndexes(payload: Payload): Promise<void> {
 
   if (missingEndsAt.length > 0) {
     payload.logger.info(`backfilled endsAt on ${missingEndsAt.length} appointment slots`)
+  }
+
+  const unresolved = payload.db.collections['unresolved-queries']?.collection
+  if (unresolved) {
+    await unresolved.createIndex(
+      { user: 1, questionKey: 1, status: 1 },
+      { name: 'user_questionKey_status' },
+    )
+
+    const missingKey = await unresolved
+      .find({
+        $or: [{ questionKey: { $exists: false } }, { questionKey: null }, { questionKey: '' }],
+        question: { $exists: true },
+      })
+      .toArray()
+
+    for (const doc of missingKey) {
+      const key = normalizeQuestionKey(String(doc.question || ''))
+      if (!key) continue
+      await unresolved.updateOne({ _id: doc._id }, { $set: { questionKey: key } })
+    }
+
+    if (missingKey.length > 0) {
+      payload.logger.info(`backfilled questionKey on ${missingKey.length} unresolved queries`)
+    }
   }
 
   payload.logger.info('database indexes ensured')

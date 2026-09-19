@@ -75,7 +75,7 @@ Expected: still fallback, not a confident wrong answer. Coverage gate exists for
 
 ## 8. RAG Test 4 — human resolution
 
-In admin: open the unresolved row → type `humanResponse` → status **Resolved**.
+In admin: open the unresolved row → type `humanResponse` → status **Resolved**. The patient sees the reply on the **Clinic replies** tab, not in the RAG chat.
 
 Expected: `resolvedAt` / `reviewedBy` stamped by hook. No notification system (out of scope).
 

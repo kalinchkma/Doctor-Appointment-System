@@ -102,6 +102,7 @@ export type ChatSessionMessage = {
   role: 'user' | 'assistant'
   content: string
   grounded?: boolean
+  fromStaff?: boolean
   sources?: ChatSource[]
   createdAt: string
 }
@@ -118,4 +119,14 @@ export type ChatSuggestedQuestion = {
   question: string
   order: number
   active: boolean
+}
+
+/** Patient-visible unresolved query. Clinic answers live here, not in RAG chat. */
+export type ClinicReply = {
+  id: string
+  question: string
+  status: 'new' | 'resolved'
+  humanResponse: string | null
+  createdAt: string
+  resolvedAt: string | null
 }

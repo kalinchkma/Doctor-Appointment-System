@@ -386,7 +386,9 @@ export interface KnowledgeDocument {
 export interface UnresolvedQuery {
   id: string;
   question: string;
+  questionKey?: string | null;
   user: string | User;
+  sessionId?: string | null;
   status: 'new' | 'resolved';
   humanResponse?: string | null;
   /**
@@ -398,6 +400,10 @@ export interface UnresolvedQuery {
    */
   topScore?: number | null;
   resolvedAt?: string | null;
+  /**
+   * When the clinic reply was written into the patient’s chat session.
+   */
+  deliveredAt?: string | null;
   reviewedBy?: (string | null) | User;
   updatedAt: string;
   createdAt: string;
@@ -693,12 +699,15 @@ export interface KnowledgeDocumentsSelect<T extends boolean = true> {
  */
 export interface UnresolvedQueriesSelect<T extends boolean = true> {
   question?: T;
+  questionKey?: T;
   user?: T;
+  sessionId?: T;
   status?: T;
   humanResponse?: T;
   retrievalReason?: T;
   topScore?: T;
   resolvedAt?: T;
+  deliveredAt?: T;
   reviewedBy?: T;
   updatedAt?: T;
   createdAt?: T;

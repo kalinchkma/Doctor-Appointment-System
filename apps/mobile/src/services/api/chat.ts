@@ -1,4 +1,4 @@
-import type { ChatReply, ChatSession, ChatSuggestedQuestion } from '../../types'
+import type { ChatReply, ChatSession, ChatSuggestedQuestion, ClinicReply } from '../../types'
 import { ApiError, get, post } from './client'
 
 /**
@@ -25,6 +25,11 @@ export const getActiveChatSession = () => get<ChatSession>('/api/chat/sessions/a
 
 export const resetChatSession = (sessionId: string) =>
   post<ChatSession>(`/api/chat/sessions/${sessionId}/reset`)
+
+export async function listClinicReplies(): Promise<ClinicReply[]> {
+  const result = await get<{ docs: ClinicReply[] }>('/api/chat/clinic-replies')
+  return result.docs ?? []
+}
 
 type SuggestedList = {
   docs: ChatSuggestedQuestion[]

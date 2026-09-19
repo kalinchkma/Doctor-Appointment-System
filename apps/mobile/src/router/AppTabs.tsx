@@ -1,5 +1,11 @@
 import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } from '@ionic/react'
-import { calendarOutline, chatbubblesOutline, homeOutline, searchOutline } from 'ionicons/icons'
+import {
+  calendarOutline,
+  chatbubblesOutline,
+  homeOutline,
+  mailUnreadOutline,
+  searchOutline,
+} from 'ionicons/icons'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Home } from '../pages/Home'
 import { Doctors } from '../pages/Doctors'
@@ -9,9 +15,10 @@ import { BookingConfirmation } from '../pages/BookingConfirmation'
 import { AppointmentDetails } from '../pages/AppointmentDetails'
 import { MyAppointments } from '../pages/MyAppointments'
 import { Chat } from '../pages/Chat'
+import { ClinicReplies } from '../pages/ClinicReplies'
 
 /**
- * Primary app shell: bottom tabs for Home / Doctors / Appointments / Assistant.
+ * Primary app shell: Home / Doctors / Appointments / Assistant / Clinic replies.
  * Nested flows keep the tab bar visible except during the multi-step book flow and
  * confirmation, where the footer CTA already needs the space.
  */
@@ -34,6 +41,7 @@ export function AppTabs() {
           />
           <Route path="/appointments/:appointmentId" element={<AppointmentDetails />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/clinic-replies" element={<ClinicReplies />} />
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
@@ -55,6 +63,10 @@ export function AppTabs() {
         <IonTabButton tab="chat" href="/chat">
           <IonIcon icon={chatbubblesOutline} />
           <IonLabel>Assistant</IonLabel>
+        </IonTabButton>
+        <IonTabButton tab="clinic-replies" href="/clinic-replies">
+          <IonIcon icon={mailUnreadOutline} />
+          <IonLabel>Replies</IonLabel>
         </IonTabButton>
       </IonTabBar>
     </IonTabs>

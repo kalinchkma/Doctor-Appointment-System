@@ -1,5 +1,11 @@
 import { IonButton, IonContent, IonIcon, IonPage } from '@ionic/react'
-import { calendarOutline, chatbubblesOutline, logOutOutline, searchOutline } from 'ionicons/icons'
+import {
+  calendarOutline,
+  chatbubblesOutline,
+  logOutOutline,
+  mailUnreadOutline,
+  searchOutline,
+} from 'ionicons/icons'
 import { useNavigate } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { useAuth } from '../hooks/useAuth'
@@ -38,6 +44,10 @@ export function Home() {
           <IonButton fill="outline" onClick={() => navigate('/chat')}>
             <IonIcon slot="start" icon={chatbubblesOutline} />
             Healthcare assistant
+          </IonButton>
+          <IonButton fill="outline" onClick={() => navigate('/clinic-replies')}>
+            <IonIcon slot="start" icon={mailUnreadOutline} />
+            Clinic replies
           </IonButton>
         </div>
       </IonContent>
