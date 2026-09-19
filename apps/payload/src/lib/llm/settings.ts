@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-export type ChatProvider = 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter'
+export type ChatProvider = 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'deepseek'
 export type EmbedProvider = 'ollama' | 'openai' | 'google' | 'openrouter'
 
 export type RagRuntimeSettings = {

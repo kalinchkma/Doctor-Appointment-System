@@ -41,8 +41,8 @@ backend and never reach the mobile bundle (ADR-017).
 | [Implementation plan](docs/plan-docs/01-implementation-plan.md)   | Nine phases with estimates and a scope cut line        |
 | [Testing plan](docs/plan-docs/02-testing-plan.md)                 | Test strategy, concurrency test, threshold calibration |
 | [Running plan](docs/plan-docs/03-running-plan.md)                 | Three run modes, first-run sequence, troubleshooting   |
-| `docs/plan-docs/*.docx`                                           | Original system design and ADRs                        |
-| `docs/assignment-docs/`                                           | The assessment brief                                   |
+| [Technical review slides](docs/presentation/slides.md)            | 30–45 min walkthrough deck (requirement → EC2)     |
+| [Live demo script](docs/presentation/walkthrough.md)              | Appointment + RAG tests 1–4                        |
 
 ## Prerequisites
 
@@ -193,7 +193,7 @@ pnpm dev:mobile
 ## Local AI provider and CMS configuration
 
 Chat and embeddings are configured in **Payload Admin → RAG Settings**, not in
-`.env`. The Go service never talks to Ollama, OpenAI, Anthropic, Google, or OpenRouter. It
+`.env`. The Go service never talks to Ollama, OpenAI, Anthropic, Google, OpenRouter, or DeepSeek. It
 calls Payload (`/api/internal/embeddings` and `/api/internal/chat/completions`);
 Payload holds the keys and talks to the chosen vendor.
 
@@ -220,6 +220,7 @@ To switch providers, open RAG Settings and pick:
 | Anthropic Claude (`claude-sonnet-4-5`) | Ollama, OpenAI, Google, or OpenRouter (Claude has no embeddings API) |
 | Google Gemini (`gemini-2.0-flash`) | Google (`gemini-embedding-001`, set dimensions to 768) or keep Ollama embeddings |
 | OpenRouter (`openai/gpt-4o-mini`) | OpenRouter (`openai/text-embedding-3-small`, 1536) — use model ids from openrouter.ai/models |
+| DeepSeek (`deepseek-chat`) | Ollama, OpenAI, Google, or OpenRouter (DeepSeek has no embeddings API) |
 
 Paste the API key in the CMS only. Changing embedding dimensions requires
 dropping `knowledge_vector_index` and re-ingesting every document, then
@@ -454,6 +455,7 @@ in Payload; the user sees a generic unavailable message.
 | Anthropic Claude | `claude-sonnet-4-5` | *(none — use Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
 | Google Gemini | `gemini-2.0-flash` | `gemini-embedding-001` (768) |
 | OpenRouter | `openai/gpt-4o-mini` | `openai/text-embedding-3-small` (1536) |
+| DeepSeek | `deepseek-chat` (or `deepseek-reasoner`) | *(none — keep Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
 
 In Compose, Payload talks to packed Ollama at `http://ollama:11434/v1`. Models
 are pulled by the `ollama-pull` service. Host-only CMS uses

@@ -8,6 +8,7 @@ const ollamaFallback = () =>
 
 const GOOGLE_API = 'https://generativelanguage.googleapis.com/v1beta'
 const OPENROUTER_API = 'https://openrouter.ai/api/v1'
+const DEEPSEEK_API = 'https://api.deepseek.com/v1'
 
 function openRouterHeaders(apiKey: string): Record<string, string> {
   return {
@@ -61,7 +62,11 @@ function providerBaseUrl(
 
   // Ignore leftover URLs from a previous provider (common after switching Gemini ↔ Ollama).
   if (provider === 'ollama') {
-    if (/googleapis\.com|openai\.com|anthropic\.com|openrouter\.ai|generateContent|batchEmbed/i.test(value)) {
+    if (
+      /googleapis\.com|openai\.com|anthropic\.com|openrouter\.ai|deepseek\.com|generateContent|batchEmbed/i.test(
+        value,
+      )
+    ) {
       return fallback.replace(/\/$/, '')
     }
   }
@@ -76,11 +81,20 @@ function providerBaseUrl(
     return stripped || GOOGLE_API
   }
   if (provider === 'openrouter') {
-    if (/googleapis\.com|11434|ollama|anthropic\.com/i.test(value) && !/openrouter\.ai/i.test(value)) {
+    if (/googleapis\.com|11434|ollama|anthropic\.com|deepseek\.com/i.test(value) && !/openrouter\.ai/i.test(value)) {
       return fallback.replace(/\/$/, '')
     }
   }
-  if (provider === 'openai' && /googleapis\.com|11434|ollama|openrouter\.ai/i.test(value)) {
+  if (provider === 'deepseek') {
+    if (
+      /googleapis\.com|11434|ollama|anthropic\.com|openrouter\.ai|openai\.com/i.test(value) &&
+      !/deepseek\.com/i.test(value)
+    ) {
+      return fallback.replace(/\/$/, '')
+    }
+    return /\/v1$/i.test(value) ? value : `${value}/v1`
+  }
+  if (provider === 'openai' && /googleapis\.com|11434|ollama|openrouter\.ai|deepseek\.com/i.test(value)) {
     return fallback.replace(/\/$/, '')
   }
   return value
@@ -102,6 +116,11 @@ function chatEndpoint(settings: RagRuntimeSettings): { url: string; headers: Rec
       return {
         url: `${providerBaseUrl('openrouter', settings.chatBaseUrl, OPENROUTER_API)}/chat/completions`,
         headers: openRouterHeaders(key),
+      }
+    case 'deepseek':
+      return {
+        url: `${providerBaseUrl('deepseek', settings.chatBaseUrl, DEEPSEEK_API)}/chat/completions`,
+        headers: { Authorization: `Bearer ${key}` },
       }
     case 'anthropic':
       return {
@@ -390,9 +409,11 @@ export async function proxyCompletion(
     throw new Error('OpenRouter API key is missing in RAG Settings')
   }
 
-  const isDeepSeekReasoner =
-    settings.chatProvider === 'ollama' &&
-    /deepseek-r1|deepseek-reasoner/i.test(settings.chatModel)
+  if (provider === 'deepseek' && !settings.chatApiKey?.trim()) {
+    throw new Error('DeepSeek API key is missing in RAG Settings')
+  }
+
+  const isDeepSeekReasoner = isReasoningChatModel(settings)
 
   // Short answers: cap tokens so local models finish quickly instead of rambling.
   const maxTokens = isDeepSeekReasoner ? 500 : mode === 'json' ? 350 : 400
@@ -405,7 +426,7 @@ export async function proxyCompletion(
       temperature,
       max_tokens: maxTokens,
       ...(wantJson && supportsJsonObjectMode(settings) ? { response_format: { type: 'json_object' } } : {}),
-      ...(isDeepSeekReasoner ? { think: false } : {}),
+      ...(settings.chatProvider === 'ollama' && isDeepSeekReasoner ? { think: false } : {}),
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -416,19 +437,30 @@ export async function proxyCompletion(
   const choices = parsed.choices as { message?: { content?: string } }[] | undefined
   let text = choices?.[0]?.message?.content
   if (!text) {
-    const message = choices?.[0]?.message as { reasoning?: string; content?: string } | undefined
-    text = message?.content || message?.reasoning || ''
+    const message = choices?.[0]?.message as
+      | { reasoning?: string; reasoning_content?: string; content?: string }
+      | undefined
+    text = message?.content || message?.reasoning_content || message?.reasoning || ''
   }
   if (!text) throw new Error('completion: empty')
   return stripReasoningWrappers(text)
 }
 
-function supportsJsonObjectMode(settings: RagRuntimeSettings): boolean {
-  if (settings.chatProvider === 'ollama') {
-    const model = settings.chatModel.toLowerCase()
-    return !(model.includes('deepseek-r1') || model.includes('deepseek-reasoner'))
+function isReasoningChatModel(settings: RagRuntimeSettings): boolean {
+  const model = settings.chatModel.toLowerCase()
+  if (settings.chatProvider === 'deepseek') {
+    return model.includes('reasoner') || model.includes('r1')
   }
-  // OpenAI, OpenRouter, and other OpenAI-compatible chat endpoints support json_object.
+  return (
+    settings.chatProvider === 'ollama' &&
+    (model.includes('deepseek-r1') || model.includes('deepseek-reasoner'))
+  )
+}
+
+function supportsJsonObjectMode(settings: RagRuntimeSettings): boolean {
+  if (isReasoningChatModel(settings)) return false
+  if (settings.chatProvider === 'ollama') return true
+  // OpenAI, OpenRouter, DeepSeek-chat, and other OpenAI-compatible endpoints support json_object.
   return true
 }
 

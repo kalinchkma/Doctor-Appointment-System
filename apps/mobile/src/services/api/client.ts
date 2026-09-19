@@ -57,6 +57,55 @@ function mergeHeaders(
   return headers
 }
 
+function isPublicHttpHost(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
+function looksLikeTimeout(error: unknown): boolean {
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return true
+  }
+  const text = error instanceof Error ? `${error.name} ${error.message}` : String(error)
+  return /timeout|timed out|deadline exceeded|socket.*reset|connection reset|failed to connect/i.test(
+    text,
+  )
+}
+
+function parseResponseBody(raw: unknown): ErrorBody & Record<string, unknown> {
+  if (raw == null || raw === '') return {}
+  if (typeof raw === 'object') return raw as ErrorBody & Record<string, unknown>
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed || trimmed.startsWith('<')) return {}
+    try {
+      return JSON.parse(trimmed) as ErrorBody & Record<string, unknown>
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function networkFailure(error: unknown): ApiError {
+  if (looksLikeTimeout(error)) {
+    return new ApiError(
+      'ASSISTANT_UNAVAILABLE',
+      504,
+      'The assistant took too long, or the connection dropped while Ollama was answering. Try again on a stable network. First answers on a small EC2 instance can take a minute.',
+    )
+  }
+  const detail = error instanceof Error && error.message ? error.message : ''
+  const where = isPublicHttpHost(baseURL)
+    ? `Could not finish the request to ${baseURL}. Same Wi‑Fi is not required. Open that URL in the phone’s browser — if it fails, AWS security group port 80 or the carrier is blocking HTTP.`
+    : `We could not reach ${baseURL}. Use the same Wi‑Fi as the CMS, or rebuild the APK with the public EC2 URL (no :3000).`
+  return new ApiError('NETWORK_ERROR', 0, detail ? `${where} (${detail})` : where)
+}
+
 function parseJsonBody(body: BodyInit | null | undefined): unknown {
   if (body == null) return undefined
   if (typeof body === 'string') {
@@ -113,13 +162,15 @@ async function requestNative<T>(
     return undefined as T
   }
 
-  const raw = response.data
-  const body = (
-    typeof raw === 'string'
-      ? (JSON.parse(raw || '{}') as ErrorBody & T)
-      : ((raw ?? {}) as ErrorBody & T)
-  ) as ErrorBody & T
+  if (response.status === 0) {
+    throw new Error(
+      typeof response.data === 'string' && response.data
+        ? response.data
+        : 'Native HTTP request failed',
+    )
+  }
 
+  const body = parseResponseBody(response.data) as ErrorBody & T
   await throwIfFailed(response.status, body)
   return body
 }
@@ -166,18 +217,7 @@ export async function request<T>(
     return await requestWeb<T>(path, init, options, token)
   } catch (error) {
     if (error instanceof ApiError) throw error
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      throw new ApiError(
-        'ASSISTANT_UNAVAILABLE',
-        504,
-        'The assistant took too long to respond. Try again, or switch to a faster model in Admin → RAG Settings (for example llama3.2 or gemini-2.0-flash).',
-      )
-    }
-    throw new ApiError(
-      'NETWORK_ERROR',
-      0,
-      `We could not reach the server at ${baseURL}. Check that your phone is on the same Wi‑Fi, the CMS is running, and HTTP cleartext is allowed.`,
-    )
+    throw networkFailure(error)
   }
 }
 

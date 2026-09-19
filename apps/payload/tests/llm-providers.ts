@@ -62,4 +62,12 @@ assert.equal(openrouter.chatModel, 'openai/gpt-4o-mini')
 assert.equal(openrouter.embedModel, 'openai/text-embedding-3-small')
 assert.equal(openrouter.embedDimensions, 1536)
 
+const deepseek = applyProviderExamples(
+  { chatProvider: 'deepseek', embedProvider: 'ollama' },
+  { chatProvider: 'ollama', chatModel: 'llama3.2', embedProvider: 'ollama', embedModel: 'nomic-embed-text' },
+)
+assert.equal(deepseek.chatModel, 'deepseek-chat')
+assert.equal(deepseek.embedModel ?? 'nomic-embed-text', 'nomic-embed-text')
+assert.equal(deepseek.embedDimensions ?? 768, 768)
+
 console.log('llm provider helpers ok')

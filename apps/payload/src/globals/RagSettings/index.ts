@@ -44,6 +44,7 @@ export const RagSettings: GlobalConfig = {
             { label: 'Anthropic Claude', value: 'anthropic' },
             { label: 'Google Gemini', value: 'google' },
             { label: 'OpenRouter', value: 'openrouter' },
+            { label: 'DeepSeek', value: 'deepseek' },
           ],
         },
         {
@@ -60,7 +61,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default (Compose Ollama: http://ollama:11434/v1). OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta (not …/interactions). Host Ollama: http://127.0.0.1:11434/v1. Do not paste a full …/generateContent URL.',
+              'Leave blank for the provider default. DeepSeek: https://api.deepseek.com/v1. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta. Compose Ollama: http://ollama:11434/v1. Host Ollama: http://127.0.0.1:11434/v1.',
           },
         },
         {
@@ -91,7 +92,7 @@ export const RagSettings: GlobalConfig = {
           ],
           admin: {
             description:
-              'Anthropic has no embeddings API. Chat can still be Claude while embeddings stay on Ollama, OpenAI, Google, or OpenRouter.',
+              'Anthropic and DeepSeek have no embeddings API. Chat can still be DeepSeek or Claude while embeddings stay on Ollama, OpenAI, Google, or OpenRouter.',
           },
         },
         {
