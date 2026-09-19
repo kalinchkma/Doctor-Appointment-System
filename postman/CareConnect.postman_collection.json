@@ -1,0 +1,479 @@
+{
+  "info": {
+    "_postman_id": "a7c4e2b1-9d38-4f51-8c0a-careconnect-api-01",
+    "name": "CareConnect — Patient APIs",
+    "description": "Public and patient APIs used by the CareConnect mobile app (Ionic) against Payload CMS.\n\n**How to use**\n1. Import this file in Postman (File → Import).\n2. Set `baseUrl` — local CMS is `http://localhost:3000`; EC2 edge is `http://<elastic-ip>` with **no** `:3000`.\n3. Run **Auth → Login (patient)** first. The test script stores `jwt`. Later requests send `Authorization: JWT {{jwt}}` (not Bearer).\n4. Seeded demo patient: `ayesha.karim@careconnect.demo` / `Patient123!`.\n\n**Not in this collection**\n- Payload Admin UI CRUD (doctors, slots, knowledge, unresolved queries).\n- Internal `/api/internal/*` (Go RAG only; nginx denies these from the public internet).\n- Go RAG `:8080` — unpublished; `/healthz` must fail from a laptop.\n\nPatients cannot create appointments or reviews through generic REST. Use `/book` and `/submit`. Clinic replies are **read-only** — only an admin `humanResponse` in Unresolved Queries answers the patient.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "Authorization", "type": "string" },
+      { "key": "value", "value": "JWT {{jwt}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const start = new Date();",
+          "start.setHours(0, 0, 0, 0);",
+          "const end = new Date();",
+          "end.setHours(23, 59, 59, 999);",
+          "pm.collectionVariables.set('todayStart', start.toISOString());",
+          "pm.collectionVariables.set('todayEnd', end.toISOString());",
+          "pm.collectionVariables.set('nowIso', new Date().toISOString());"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "jwt", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "email", "value": "ayesha.karim@careconnect.demo" },
+    { "key": "password", "value": "Patient123!" },
+    { "key": "doctorId", "value": "" },
+    { "key": "slotId", "value": "" },
+    { "key": "appointmentId", "value": "" },
+    { "key": "sessionId", "value": "" },
+    { "key": "clinicReplyId", "value": "" },
+    { "key": "todayStart", "value": "" },
+    { "key": "todayEnd", "value": "" },
+    { "key": "nowIso", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Connectivity",
+      "item": [
+        {
+          "name": "CMS access check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/access",
+            "description": "Payload built-in probe. A `200` means the CMS is up (used by Docker healthchecks). No JWT required. On EC2 call the public IP on port 80, not `:3000`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register patient",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.token) pm.collectionVariables.set('jwt', body.token);",
+                  "  if (body.user && body.user.id) pm.collectionVariables.set('userId', body.user.id);",
+                  "  if (body.user && body.user.email) pm.collectionVariables.set('email', body.user.email);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ayesha Karim\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/patient/register",
+            "description": "Creates a `role: patient` user and returns a session `{ token, user }` (`201`). Used by the mobile Create account screen.\n\nBody: `name`, `email`, `password` (all required).\nFails with `400` if the email is already taken. Stores `jwt` on success."
+          }
+        },
+        {
+          "name": "Login (patient)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.token) pm.collectionVariables.set('jwt', body.token);",
+                  "  if (body.user && body.user.id) pm.collectionVariables.set('userId', body.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/patient/login",
+            "description": "Patient login used by the mobile app. Returns `{ token, user }`.\n\nAdmin accounts get `403` here — they must use Payload Admin (`POST /api/users/login`), not this route.\n`401` = bad credentials. Saves `jwt` for the rest of the collection.\n\nDemo seed: `ayesha.karim@careconnect.demo` / `Patient123!`."
+          }
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/me",
+            "description": "Confirms the stored JWT is still valid. Mobile calls this on app start. Response is `{ user }` or `{ user: null }` when unauthenticated."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Doctors & slots",
+      "item": [
+        {
+          "name": "List active doctors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const first = body.docs && body.docs[0];",
+                  "  if (first && first.id) pm.collectionVariables.set('doctorId', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/doctors?where[active][equals]=true&sort=name&limit=100&depth=1",
+            "description": "Payload REST list of active doctors. Public (`anyone`). Mobile Home / Doctors screens use this, then mark `availableToday` from today's open slots.\nSaves the first doctor's `id` into `doctorId`."
+          }
+        },
+        {
+          "name": "Get doctor",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/doctors/{{doctorId}}?depth=1",
+            "description": "Single doctor for the details screen. Public. Run **List active doctors** first so `doctorId` is set."
+          }
+        },
+        {
+          "name": "Today's available slots (all doctors)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/appointment-slots?where[and][0][status][equals]=available&where[and][1][startsAt][greater_than_equal]={{todayStart}}&where[and][2][startsAt][less_than_equal]={{todayEnd}}&limit=500&depth=0",
+            "description": "Open slots for the local calendar day. Public. Mobile uses this only to compute each doctor's `availableToday` badge. `todayStart` / `todayEnd` are set automatically before every request."
+          }
+        },
+        {
+          "name": "List future slots for a doctor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const open = (body.docs || []).find((s) => s.status === 'available');",
+                  "  if (open && open.id) pm.collectionVariables.set('slotId', open.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/appointment-slots?where[doctor][equals]={{doctorId}}&where[startsAt][greater_than]={{nowIso}}&sort=startsAt&limit=200&depth=0",
+            "description": "Booking calendar for one doctor: future available **and** booked slots. Booked times are shown in the UI but cannot be selected. The book endpoint still claims the slot atomically.\nSaves the first `available` slot into `slotId`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Reviews",
+      "item": [
+        {
+          "name": "List reviews for a doctor",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/doctor-reviews?where[doctor][equals]={{doctorId}}&sort=-createdAt&limit=50&depth=0",
+            "description": "Published reviews for a doctor. Public read. Generic REST **create** is closed — patients write through Submit review."
+          }
+        },
+        {
+          "name": "Submit review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"rating\": 5,\n  \"comment\": \"Clear explanation and on time.\",\n  \"appointmentId\": \"{{appointmentId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-reviews/submit",
+            "description": "Patient write path for reviews. Requires JWT.\n\nRules: one review per doctor; the patient must have a **past booked** appointment with that doctor (slot start already passed). `appointmentId` is optional — the server picks an eligible past visit if omitted.\n\nReturns `{ id, doctorId, rating, comment, ratingAverage, reviewCount }`.\n`alreadyReviewed` / not-eligible errors if those rules fail."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Appointments",
+      "item": [
+        {
+          "name": "List my appointments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const first = body.docs && body.docs[0];",
+                  "  if (first && first.id) pm.collectionVariables.set('appointmentId', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/appointments?sort=-bookedAt&depth=2",
+            "description": "The caller's appointments only — access control uses the JWT, never a user id in the query. `depth=2` so mobile can show doctor and slot times. Saves the first id into `appointmentId`."
+          }
+        },
+        {
+          "name": "Get one appointment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/appointments/{{appointmentId}}?depth=2",
+            "description": "Appointment details. `403` unless the row belongs to the JWT user."
+          }
+        },
+        {
+          "name": "Book appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.collectionVariables.set('appointmentId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slotId\": \"{{slotId}}\",\n  \"contactName\": \"Ayesha Karim\",\n  \"contactPhone\": \"+8801711000000\",\n  \"contactEmail\": \"ayesha.karim@careconnect.demo\",\n  \"patientNote\": \"First visit — please allow extra time.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/appointments/book",
+            "description": "Only patient write path for bookings. Generic REST create is closed.\n\nThe **patient is taken from the JWT**, not the body. Slot is claimed with an atomic `available → booked` CAS plus `uniq_active_slot`.\n\nRequired: `slotId`, `contactName`, `contactPhone`, `contactEmail`. Optional `patientNote` (max 500).\nRun **List future slots** first so `slotId` is an available slot. Concurrent book of the same slot returns slot-unavailable."
+          }
+        },
+        {
+          "name": "Update appointment note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientNote\": \"Please call if running late.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/appointments/{{appointmentId}}/note",
+            "description": "Add or replace the patient's special request after booking. Generic REST update is admin-only. Body: `{ patientNote }` (max 500, empty string clears it)."
+          }
+        },
+        {
+          "name": "Cancel appointment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/appointments/{{appointmentId}}/cancel",
+            "description": "Cancels the caller's appointment and releases the slot to `available`. No body.\n\nBlocked if already cancelled or inside the 1-hour cancel window (`cancelTooLate`). Returns `{ id, status: \"cancelled\", slotStatus: \"available\" }`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Healthcare assistant",
+      "item": [
+        {
+          "name": "List suggested questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat-suggested-questions?where[active][equals]=true&sort=order&limit=20&depth=0",
+            "description": "Quick-start chips on the Chat screen. Payload REST; only `active: true` rows, sorted by `order`."
+          }
+        },
+        {
+          "name": "Get or create active chat session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.collectionVariables.set('sessionId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/sessions/active",
+            "description": "Returns the patient's current Redis chat session, or creates one. Mobile opens Chat with this. History lives in Redis (24h TTL, max 20 messages), not Mongo.\nSaves `sessionId`."
+          }
+        },
+        {
+          "name": "Create chat session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.collectionVariables.set('sessionId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/sessions",
+            "description": "Start a fresh session (`201`). No body. Prefer **Get or create active** unless you explicitly want a new id."
+          }
+        },
+        {
+          "name": "Get chat session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/sessions/{{sessionId}}",
+            "description": "Load one owned session (id must belong to the JWT user). Staff-injected messages are stripped from the public payload."
+          }
+        },
+        {
+          "name": "Ask the assistant",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Request-Id", "value": "postman-chat-1", "description": "Optional trace id; Payload logs it." }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"question\": \"What foods help during pregnancy?\"\n}"
+            },
+            "url": "{{baseUrl}}/api/chat",
+            "description": "The only public RAG chat route. Payload calls unpublished Go RAG; the mobile app never talks to Ollama or the vector store.\n\nBody: `sessionId` (UUID from a session call), `question` (1–1000 chars).\nRaise Postman timeout to **210000 ms** — first answers on a small instance can take a minute.\nRate limit: 20 asks / 60s per user (`429`).\n\n`grounded: false` means the sufficiency gates declined. Those questions are stored as unresolved queries for an admin `humanResponse`. Outages return `502`/`503` and do **not** create an unresolved row."
+          }
+        },
+        {
+          "name": "Reset chat session",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/sessions/{{sessionId}}/reset",
+            "description": "Clears Redis history for this session and returns the empty public session. Used by the Chat “new conversation” control."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Clinic replies (read-only)",
+      "item": [
+        {
+          "name": "List my clinic replies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const first = body.docs && body.docs[0];",
+                  "  if (first && first.id) pm.collectionVariables.set('clinicReplyId', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/clinic-replies",
+            "description": "Unresolved questions belonging to the JWT user, including admin `humanResponse` when present. Mobile **Replies** tab.\n\n`waitingOn: staff` = still waiting; a non-empty `humanResponse` is treated as answered. Patients **cannot** POST replies — only admins type `humanResponse` in Unresolved Queries and save.\nSaves the first id into `clinicReplyId`."
+          }
+        },
+        {
+          "name": "Get one clinic reply",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/clinic-replies/{{clinicReplyId}}",
+            "description": "One owned clinic reply for the conversation screen. `404` if the id is missing or belongs to another patient. Read-only — there is no messages POST."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin portal (not used by the app)",
+      "item": [
+        {
+          "name": "Admin login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"your-admin-password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users/login",
+            "description": "Payload's built-in admin login. The **mobile app does not call this**. Patient accounts should use `/api/auth/patient/login` instead.\nUse this only to inspect admin-only REST (unresolved queries, RAG settings) from Postman. After login, copy `token` into `jwt` manually if needed."
+          }
+        }
+      ]
+    }
+  ]
+}
