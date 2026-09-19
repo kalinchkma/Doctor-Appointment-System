@@ -1,0 +1,31 @@
+# Local laptop overlay: mongodb, redis, cms, rag only.
+# Packed Ollama and nginx stay on profiles so they do not start.
+# Chat/embeddings come from Payload Admin → RAG Settings (DeepSeek, OpenAI, etc.).
+#
+#   docker compose --env-file .env \
+#     -f infrastructure/docker/docker-compose.yml \
+#     -f infrastructure/docker/docker-compose.local.yml \
+#     up -d --build
+
+services:
+  nginx:
+    profiles: [edge]
+
+  ollama:
+    profiles: [ollama]
+
+  ollama-pull:
+    profiles: [ollama]
+
+  cms:
+    depends_on: !override
+      mongodb:
+        condition: service_healthy
+      rag:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Packed Ollama is off. If RAG Settings still use Ollama (nomic embeddings),
+      # talk to a host daemon — 127.0.0.1 inside this container is the CMS itself.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1

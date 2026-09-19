@@ -94,6 +94,27 @@ func (offTopicGenerator) Generate(_ context.Context, system, _ string) (string, 
 	return "I only answer from the clinic's uploaded knowledge documents. Ask about those topics instead.", nil
 }
 
+func TestAskLanguageCapabilityUsesModelNotHardcoded(t *testing.T) {
+	reply := "Yes — I can reply in Bangla anytime. Ask me about the clinic documents when you are ready."
+	pipe := New(
+		config.Config{},
+		emptyStore{},
+		llm.FakeEmbedder{Dim: 8},
+		llm.ScriptedGenerator{Response: reply},
+		nil,
+	)
+	got, err := pipe.Ask(context.Background(), "Can you speak bangla??")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Reason != "identity" {
+		t.Fatalf("reason %s", got.Reason)
+	}
+	if got.Answer != reply {
+		t.Fatalf("expected live model reply, got %q", got.Answer)
+	}
+}
+
 func TestAskOffTopicUsesConversationalPath(t *testing.T) {
 	pipe := New(
 		config.Config{},

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/example/doctor-appointment-rag/services/rag/internal/lang"
 )
 
 // Kind is a pre-filter for chat turns before retrieval.
@@ -18,9 +20,9 @@ const (
 )
 
 const (
-	GreetingAnswer = "Hello! I'm your clinic knowledge assistant. Ask me about topics covered in our uploaded healthcare documents and I will answer from those sources."
-	IdentityAnswer = "I'm a knowledge-base assistant for this clinic app. I answer from documents the clinic uploaded — I don't diagnose or prescribe. For personal medical advice, please speak with a clinician."
-	OffTopicAnswer = "I can only help with questions that relate to the clinic's uploaded knowledge documents. Try asking about those topics, or upload more documents in Admin if you need broader coverage."
+	GreetingAnswer = lang.GreetingEN
+	IdentityAnswer = lang.IdentityEN
+	OffTopicAnswer = lang.OffTopicEN
 )
 
 // TriageSystem asks the chat model to classify a turn before retrieval.
@@ -29,25 +31,31 @@ The assistant may ONLY answer from documents currently in the clinic knowledge b
 Classify the user's message as exactly one kind:
 
 - greeting: pure hello/thanks/bye with no real question
-- identity: asking who/what the assistant is or what it can do
+- identity: who/what the assistant is, what it can do, whether it can speak a language, or a request to switch reply language
 - knowledge: a substantive question that might be answerable from the knowledge base titles/topics
 - off_topic: clearly unrelated to the listed knowledge documents (e.g. sports scores, coding, unrelated trivia)
 
 Rules:
 - Prefer knowledge when unsure — retrieval will decide if evidence exists.
 - Prefer off_topic only when the question clearly cannot relate to any listed document.
+- "Can you speak Bangla?", "Switch to Bangla", "Reply in English" are identity — not knowledge and not off_topic.
+- Greetings and identity may be English or Bengali (হ্যালো, আসসালামু আলাইকুম, আপনি কে).
 - Reply with ONE JSON object only, no markdown:
 {"kind":"greeting"|"identity"|"knowledge"|"off_topic"}`
 
 // FallbackReply is used when the chat model is unavailable for a conversational turn.
-func FallbackReply(kind Kind) string {
+func FallbackReply(kind Kind, question string) string {
+	return FallbackReplyPref(kind, lang.Resolve(question, nil))
+}
+
+func FallbackReplyPref(kind Kind, pref lang.Preference) string {
 	switch kind {
 	case KindIdentity:
-		return IdentityAnswer
+		return lang.IdentityFor(pref)
 	case KindOffTopic:
-		return OffTopicAnswer
+		return lang.OffTopicFor(pref)
 	default:
-		return GreetingAnswer
+		return lang.GreetingFor(pref)
 	}
 }
 
@@ -122,6 +130,10 @@ func ClassifyHeuristic(question string) Kind {
 		}
 	}
 
+	if lang.IsLanguageTurn(question) {
+		return KindIdentity
+	}
+
 	for _, pattern := range identityExact {
 		if q == pattern || strings.TrimRight(q, "?") == pattern {
 			return KindIdentity
@@ -144,6 +156,9 @@ var greetingExact = map[string]struct{}{
 	"hey there": {}, "greetings": {},
 	"thanks": {}, "thank you": {}, "thx": {}, "ok": {}, "okay": {},
 	"bye": {}, "goodbye": {}, "see you": {},
+	"হ্যালো": {}, "হাই": {}, "নমস্কার": {}, "আসসালামু আলাইকুম": {}, "সালাম": {},
+	"কেমন আছো": {}, "কেমন আছেন": {}, "কেমন আছ": {},
+	"শুভ সকাল": {}, "শুভ সন্ধ্যা": {}, "ধন্যবাদ": {}, "আল্লাহ হাফেজ": {},
 }
 
 var identityExact = []string{
@@ -160,6 +175,16 @@ var identityExact = []string{
 	"what can you help me with",
 	"how can you help",
 	"how can you help me",
+	"তুমি কে",
+	"আপনি কে",
+	"তুমি কী",
+	"আপনি কী",
+	"তোমার নাম কি",
+	"আপনার নাম কি",
+	"তুমি কী করতে পারো",
+	"আপনি কী করতে পারেন",
+	"তুমি কি করতে পারো",
+	"আপনি কি করতে পারেন",
 }
 
 func normalize(s string) string {

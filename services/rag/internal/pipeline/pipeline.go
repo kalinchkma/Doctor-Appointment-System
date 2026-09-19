@@ -13,12 +13,13 @@ import (
 	"github.com/example/doctor-appointment-rag/services/rag/internal/config"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/ingestion"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/intent"
+	"github.com/example/doctor-appointment-rag/services/rag/internal/lang"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/llm"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/relevance"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
 )
 
-const FallbackAnswer = "I don't have enough information in the uploaded knowledge documents to answer that question. The question has been submitted for review."
+const FallbackAnswer = lang.InsufficientEN
 
 type SyncRequest struct {
 	DocumentID string `json:"documentId"`
@@ -172,15 +173,16 @@ func (p *Pipeline) Delete(ctx context.Context, documentID string) error {
 
 func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.HistoryTurn) (ChatResult, error) {
 	question = strings.TrimSpace(question)
+	pref := lang.Resolve(question, languageTurns(history))
 	if question == "" {
-		return ChatResult{Answer: FallbackAnswer, Reason: string(relevance.ReasonNoResults)}, nil
+		return ChatResult{Answer: lang.InsufficientFor(pref), Reason: string(relevance.ReasonNoResults)}, nil
 	}
 
 	kind := p.triage(ctx, question)
 	switch kind {
 	case intent.KindGreeting, intent.KindIdentity, intent.KindOffTopic:
-		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80))
-		return p.converse(ctx, kind, question)
+		slog.Info("chat intent", "kind", kind, "question", truncate(question, 80), "replyLang", pref.Name)
+		return p.converse(ctx, kind, question, pref, history)
 	}
 
 	vectors, err := p.embedTexts(ctx, []string{question}, "query")
@@ -234,7 +236,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 	if !decision.Pass {
 		return ChatResult{
 			Sufficient: false,
-			Answer:     FallbackAnswer,
+			Answer:     lang.InsufficientFor(pref),
 			Sources:    nil,
 			Reason:     string(decision.Reason),
 			TopScore:   decision.TopScore,
@@ -243,7 +245,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 	}
 
 	genStarted := time.Now()
-	raw, err := p.generate.Generate(ctx, llm.SystemPrompt, llm.BuildUserPrompt(question, decision.Kept, history...))
+	raw, err := p.generate.Generate(ctx, llm.SystemPromptFor(pref), llm.BuildUserPromptFor(question, pref, decision.Kept, history...))
 	if err != nil {
 		slog.Error("chat generate failed",
 			"error", err,
@@ -268,7 +270,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 		)
 		return ChatResult{
 			Sufficient: false,
-			Answer:     FallbackAnswer,
+			Answer:     lang.InsufficientFor(pref),
 			Reason:     string(relevance.ReasonLLMDeclined),
 			TopScore:   decision.TopScore,
 			Confidence: 0,
@@ -335,8 +337,16 @@ func (p *Pipeline) documentTitles(ctx context.Context) []string {
 	return titles
 }
 
-func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question string) (ChatResult, error) {
-	raw, err := p.generateText(ctx, llm.ConversationalSystem, llm.ConversationalUser(string(kind), question))
+func languageTurns(history []llm.HistoryTurn) []lang.Turn {
+	out := make([]lang.Turn, len(history))
+	for i, turn := range history {
+		out[i] = lang.Turn{Role: turn.Role, Content: turn.Content}
+	}
+	return out
+}
+
+func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question string, pref lang.Preference, history []llm.HistoryTurn) (ChatResult, error) {
+	raw, err := p.generateText(ctx, llm.ConversationalSystemFor(pref), llm.ConversationalUser(string(kind), question, pref, history...))
 	answer := ""
 	if err != nil {
 		slog.Warn("conversational generate failed", "kind", kind, "error", err)
@@ -344,7 +354,7 @@ func (p *Pipeline) converse(ctx context.Context, kind intent.Kind, question stri
 		answer = llm.PlainReply(raw)
 	}
 	if answer == "" {
-		answer = intent.FallbackReply(kind)
+		answer = intent.FallbackReplyPref(kind, pref)
 	}
 
 	return ChatResult{

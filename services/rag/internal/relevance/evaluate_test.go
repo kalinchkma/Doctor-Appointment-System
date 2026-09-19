@@ -99,6 +99,21 @@ func TestEvaluateRelatedTopicWrongQuestion(t *testing.T) {
 	}
 }
 
+func TestEvaluateBanglaQuestionStrongHitPasses(t *testing.T) {
+	got := Evaluate(
+		chunks(
+			[]float64{0.81, 0.76},
+			"eat leafy greens beans and drink water during pregnancy",
+			"iron rich foods include lentils and dark green vegetables",
+		),
+		"গর্ভাবস্থায় কী খাওয়া উচিত?",
+		gates,
+	)
+	if !got.Pass {
+		t.Fatalf("Bangla question with a strong English hit should pass for translation, got %+v", got)
+	}
+}
+
 func TestEvaluateBoundaryWithCoverage(t *testing.T) {
 	got := Evaluate(
 		chunks(

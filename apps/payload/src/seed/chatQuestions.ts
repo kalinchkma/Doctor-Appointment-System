@@ -12,6 +12,8 @@ const QUESTIONS: { question: string; order: number }[] = [
   { question: 'How often should a 6–8 month old eat each day?', order: 80 },
   { question: 'What is responsive feeding for infants?', order: 90 },
   { question: 'What paracetamol dose is safe in the third trimester?', order: 100 },
+  { question: 'গর্ভাবস্থায় কী খাওয়া উচিত?', order: 110 },
+  { question: 'গর্ভাবস্থায় কি দুজনের জন্য খেতে হয়?', order: 120 },
 ]
 
 export async function seedChatQuestions(payload: Payload) {

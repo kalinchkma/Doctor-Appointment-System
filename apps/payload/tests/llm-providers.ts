@@ -66,7 +66,7 @@ const deepseek = applyProviderExamples(
   { chatProvider: 'deepseek', embedProvider: 'ollama' },
   { chatProvider: 'ollama', chatModel: 'llama3.2', embedProvider: 'ollama', embedModel: 'nomic-embed-text' },
 )
-assert.equal(deepseek.chatModel, 'deepseek-chat')
+assert.equal(deepseek.chatModel, 'deepseek-flash')
 assert.equal(deepseek.embedModel ?? 'nomic-embed-text', 'nomic-embed-text')
 assert.equal(deepseek.embedDimensions ?? 768, 768)
 

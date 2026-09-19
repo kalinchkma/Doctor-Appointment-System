@@ -111,7 +111,12 @@ func scriptedTriage(user string) string {
 	case msg == "who are you",
 		msg == "what can you do",
 		strings.HasPrefix(msg, "how can you help"),
-		strings.Contains(msg, "what can you do"):
+		strings.Contains(msg, "what can you do"),
+		strings.Contains(msg, "speak bangla"),
+		strings.Contains(msg, "speak bengali"),
+		strings.Contains(msg, "switch to bangla"),
+		strings.Contains(msg, "reply in bangla"),
+		strings.Contains(msg, "talk in bangla"):
 		return `{"kind":"identity"}`
 	case msg == "hi", msg == "hello", msg == "hey", msg == "good morning",
 		msg == "thanks", msg == "thank you", msg == "hi there", msg == "hello there":

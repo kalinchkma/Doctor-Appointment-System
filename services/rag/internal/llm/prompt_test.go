@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/example/doctor-appointment-rag/services/rag/internal/lang"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
 )
 
@@ -15,6 +16,9 @@ func TestSystemPromptContainsGrounding(t *testing.T) {
 	}
 	if !strings.Contains(SystemPrompt, "sufficient") {
 		t.Fatal("system prompt must mention the sufficient flag")
+	}
+	if !strings.Contains(SystemPromptFor(lang.Bengali), "Bengali") {
+		t.Fatal("system prompt must carry the resolved reply language")
 	}
 }
 

@@ -95,6 +95,12 @@
   color: var(--app-muted);
 }
 
+.server-status-retry {
+  margin: 10px 0 0;
+  --padding-start: 14px;
+  --padding-end: 14px;
+}
+
 .auth-shell ion-card {
   margin: 0;
   border-radius: 16px;
@@ -1572,6 +1578,17 @@
 
 .bubble .failed {
   color: var(--ion-color-danger);
+}
+
+.chat-retry {
+  margin: 10px 0 0;
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
+.state-block .failed {
+  color: var(--ion-color-danger);
+  margin: 0 0 12px;
 }
 
 .bubble.fallback {

@@ -39,7 +39,7 @@ type Message = {
 const greeting: Message = {
   id: 'greeting',
   author: 'assistant',
-  text: 'Hello. Ask me about the clinic’s healthcare guidance and I will answer from our published documents. If something is not covered there, I will say so rather than guess.',
+  text: 'Hello. Ask me about the clinic’s healthcare guidance and I will answer from our published documents. If something is not covered there, I will say so rather than guess.\n\nহ্যালো। ক্লিনিকের প্রকাশিত নথি থেকে স্বাস্থ্য বিষয়ে জিজ্ঞাসা করুন — উত্তর সেই নথি থেকেই, বাংলায়ও দিতে পারি।',
 }
 
 function fromSessionMessages(messages: ChatSessionMessage[]): Message[] {
@@ -59,9 +59,29 @@ export function Chat() {
   const [question, setQuestion] = useState('')
   const [thinking, setThinking] = useState(false)
   const [loadingSession, setLoadingSession] = useState(true)
+  const [sessionError, setSessionError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<ChatSuggestedQuestion[]>([])
   const [selectedSuggestion, setSelectedSuggestion] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
+
+  const loadSession = useCallback(async () => {
+    setLoadingSession(true)
+    setSessionError(null)
+    try {
+      let session = await getActiveChatSession().catch(() => null)
+      if (!session) {
+        session = await createChatSession()
+      }
+      setSessionId(session.id)
+      setMessages(fromSessionMessages(session.messages))
+    } catch (reason) {
+      setSessionId(null)
+      setSessionError(messageFor(reason))
+      setMessages([greeting])
+    } finally {
+      setLoadingSession(false)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -78,43 +98,24 @@ export function Chat() {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-    setLoadingSession(true)
-    ;(async () => {
-      try {
-        let session = await getActiveChatSession().catch(() => null)
-        if (!session) {
-          session = await createChatSession()
-        }
-        if (cancelled) return
-        setSessionId(session.id)
-        setMessages(fromSessionMessages(session.messages))
-      } catch {
-        if (cancelled) return
-        setSessionId(null)
-        setMessages([greeting])
-      } finally {
-        if (!cancelled) setLoadingSession(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    void loadSession()
+  }, [loadSession])
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
 
   const ask = useCallback(
-    async (text: string) => {
+    async (text: string, options?: { retry?: boolean }) => {
       const trimmed = text.trim()
       if (!trimmed || thinking || !sessionId) return
 
-      setMessages((current) => [
-        ...current,
-        { id: `q-${Date.now()}`, author: 'user', text: trimmed },
-      ])
+      if (!options?.retry) {
+        setMessages((current) => [
+          ...current,
+          { id: `q-${Date.now()}`, author: 'user', text: trimmed },
+        ])
+      }
       setQuestion('')
       setSelectedSuggestion('')
       setThinking(true)
@@ -165,6 +166,17 @@ export function Chat() {
     }
   }
 
+  const retryFailed = (failedId: string) => {
+    const failedIndex = messages.findIndex((message) => message.id === failedId)
+    if (failedIndex < 0) return
+    const prior = [...messages.slice(0, failedIndex)]
+      .reverse()
+      .find((message) => message.author === 'user')
+    if (!prior) return
+    setMessages((current) => current.filter((message) => message.id !== failedId))
+    void ask(prior.text, { retry: true })
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     await ask(question)
@@ -196,6 +208,13 @@ export function Chat() {
             <IonSpinner />
             <p>Restoring your chat…</p>
           </div>
+        ) : sessionError ? (
+          <div className="state-block">
+            <p className="failed">{sessionError}</p>
+            <IonButton fill="outline" onClick={() => void loadSession()}>
+              Retry
+            </IonButton>
+          </div>
         ) : (
           <div className="chat-log">
             {messages.map((message) => (
@@ -204,6 +223,17 @@ export function Chat() {
                 className={`bubble ${message.author}${message.fallback ? ' fallback' : ''}`}
               >
                 <p className={message.failed ? 'failed' : undefined}>{message.text}</p>
+                {message.failed && (
+                  <IonButton
+                    fill="outline"
+                    size="small"
+                    className="chat-retry"
+                    disabled={thinking}
+                    onClick={() => retryFailed(message.id)}
+                  >
+                    Retry
+                  </IonButton>
+                )}
               </div>
             ))}
             {thinking && (

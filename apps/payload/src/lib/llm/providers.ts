@@ -3,12 +3,22 @@ import type { ChatProvider, EmbedProvider, RagRuntimeSettings } from './settings
 export type EmbedTask = 'document' | 'query'
 export type CompletionMode = 'json' | 'text'
 
-const ollamaFallback = () =>
-  (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1').replace(/\/$/, '')
+function runningInCompose(): boolean {
+  const internal = process.env.PAYLOAD_INTERNAL_URL || ''
+  return /:\/\/cms(?::|\/|$)/i.test(internal) || process.env.HOSTNAME === '0.0.0.0'
+}
+
+const ollamaFallback = () => {
+  const fromEnv = process.env.OLLAMA_BASE_URL?.trim()
+  if (fromEnv) return fromEnv.replace(/\/$/, '')
+  // 127.0.0.1 inside the CMS container is the CMS itself, not the laptop.
+  if (runningInCompose()) return 'http://host.docker.internal:11434/v1'
+  return 'http://127.0.0.1:11434/v1'
+}
 
 const GOOGLE_API = 'https://generativelanguage.googleapis.com/v1beta'
 const OPENROUTER_API = 'https://openrouter.ai/api/v1'
-const DEEPSEEK_API = 'https://api.deepseek.com/v1'
+const DEEPSEEK_API = 'https://api.deepseek.com'
 
 function openRouterHeaders(apiKey: string): Record<string, string> {
   return {
@@ -92,7 +102,9 @@ function providerBaseUrl(
     ) {
       return fallback.replace(/\/$/, '')
     }
-    return /\/v1$/i.test(value) ? value : `${value}/v1`
+    // Official docs use https://api.deepseek.com/chat/completions (not /v1).
+    // Keep an explicit /v1 if the admin pasted the OpenAI-compat root.
+    return value.replace(/\/(chat\/)?completions$/i, '')
   }
   if (provider === 'openai' && /googleapis\.com|11434|ollama|openrouter\.ai|deepseek\.com/i.test(value)) {
     return fallback.replace(/\/$/, '')
@@ -173,12 +185,25 @@ function embedEndpoint(settings: RagRuntimeSettings): { url: string; headers: Re
 }
 
 async function postJson(url: string, headers: Record<string, string>, body: unknown, timeoutMs: number) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
+    const message = error instanceof Error ? error.message : String(error)
+    const detail = cause || message
+    const ollamaDown = /ECONNREFUSED|fetch failed/i.test(detail) && /11434|ollama/i.test(url)
+    throw new Error(
+      ollamaDown
+        ? `Ollama is not reachable at ${url}. Local Compose without packed Ollama needs host Ollama (ollama serve) or switch Embed provider in RAG Settings to OpenAI, Google, or OpenRouter. DeepSeek has no embeddings API.`
+        : `fetch failed at ${url}: ${detail}`,
+    )
+  }
   const text = await response.text()
   if (!response.ok) {
     const detail = text.replace(/\s+/g, ' ').slice(0, 240)
@@ -427,6 +452,8 @@ export async function proxyCompletion(
       max_tokens: maxTokens,
       ...(wantJson && supportsJsonObjectMode(settings) ? { response_format: { type: 'json_object' } } : {}),
       ...(settings.chatProvider === 'ollama' && isDeepSeekReasoner ? { think: false } : {}),
+      // Flash/Pro default to thinking=enabled; that plus json_object is slow and can look blank.
+      ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

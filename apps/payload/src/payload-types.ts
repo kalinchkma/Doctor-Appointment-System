@@ -764,11 +764,11 @@ export interface RagSetting {
   id: string;
   chatProvider: 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'deepseek';
   /**
-   * One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini · DeepSeek: deepseek-chat. Switching provider fills the example; you can still type any model id (deepseek-reasoner for R1).
+   * One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini · DeepSeek: deepseek-flash. Switching provider fills the example; you can still type any model id (deepseek-v4-pro).
    */
   chatModel: string;
   /**
-   * Leave blank for the provider default. DeepSeek: https://api.deepseek.com/v1. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta. Compose Ollama: http://ollama:11434/v1. Host Ollama: http://127.0.0.1:11434/v1.
+   * Leave blank for the provider default. DeepSeek: https://api.deepseek.com. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta. Compose Ollama: http://ollama:11434/v1. Host Ollama: http://127.0.0.1:11434/v1.
    */
   chatBaseUrl?: string | null;
   /**

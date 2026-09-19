@@ -3,10 +3,12 @@ package intent
 import (
 	"strings"
 	"testing"
+
+	"github.com/example/doctor-appointment-rag/services/rag/internal/lang"
 )
 
 func TestClassifyHeuristicGreeting(t *testing.T) {
-	for _, q := range []string{"hi", "Hi!", "hello", "good morning", "hey there", "thanks", "thank you"} {
+	for _, q := range []string{"hi", "Hi!", "hello", "good morning", "hey there", "thanks", "thank you", "হ্যালো", "আসসালামু আলাইকুম", "ধন্যবাদ"} {
 		if got := ClassifyHeuristic(q); got != KindGreeting {
 			t.Fatalf("%q => %s, want greeting", q, got)
 		}
@@ -14,7 +16,10 @@ func TestClassifyHeuristicGreeting(t *testing.T) {
 }
 
 func TestClassifyHeuristicIdentity(t *testing.T) {
-	for _, q := range []string{"Who are you?", "what can you do", "How can you help me?"} {
+	for _, q := range []string{
+		"Who are you?", "what can you do", "How can you help me?", "আপনি কে", "তুমি কি করতে পারো",
+		"Can you speak bangla??", "Switch to bangla", "Please reply in English",
+	} {
 		if got := ClassifyHeuristic(q); got != KindIdentity {
 			t.Fatalf("%q => %s, want identity", q, got)
 		}
@@ -53,6 +58,13 @@ func TestParseTriage(t *testing.T) {
 	}
 	if _, ok := ParseTriage(`{"kind":"unknown"}`); ok {
 		t.Fatal("unknown kind should fail")
+	}
+}
+
+func TestFallbackReplyBangla(t *testing.T) {
+	got := FallbackReply(KindGreeting, "হ্যালো")
+	if got != lang.GreetingBN {
+		t.Fatalf("got %q", got)
 	}
 }
 

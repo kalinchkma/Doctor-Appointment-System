@@ -22,8 +22,8 @@ export const CHAT_EXAMPLES: Record<ChatProvider, ChatExample> = {
     note: 'Cloud via OpenRouter. Use provider/model ids from openrouter.ai/models. Requires an OpenRouter API key.',
   },
   deepseek: {
-    model: 'deepseek-chat',
-    note: 'Cloud. Default is deepseek-chat (V3). Use deepseek-reasoner for R1-style reasoning. Requires a DeepSeek API key. No embeddings API — keep Ollama/OpenAI/Google for vectors.',
+    model: 'deepseek-flash',
+    note: 'Cloud. Default is deepseek-flash (V4.1). Use deepseek-v4-pro for the larger model. Requires a DeepSeek API key. No embeddings API — keep Ollama/OpenAI/Google for vectors.',
   },
 }
 
@@ -52,7 +52,7 @@ export const EMBED_EXAMPLES: Record<EmbedProvider, EmbedExample> = {
 }
 
 export const CHAT_MODEL_HELP =
-  'One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini · DeepSeek: deepseek-chat. Switching provider fills the example; you can still type any model id (deepseek-reasoner for R1).'
+  'One example per provider — Ollama: llama3.2 · OpenAI: gpt-4o-mini · Anthropic: claude-sonnet-4-5 · Google: gemini-2.0-flash · OpenRouter: openai/gpt-4o-mini · DeepSeek: deepseek-flash. Switching provider fills the example; you can still type any model id (deepseek-v4-pro).'
 
 export const EMBED_MODEL_HELP =
   'One example per provider — Ollama: nomic-embed-text (768) · OpenAI: text-embedding-3-small (1536) · Google: gemini-embedding-001 (768) · OpenRouter: openai/text-embedding-3-small (1536). Anthropic and DeepSeek have no embeddings API. Switching provider fills the example. Re-ingest after changing model or dimensions.'

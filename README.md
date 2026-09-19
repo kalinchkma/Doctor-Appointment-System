@@ -69,11 +69,23 @@ npx pnpm@12.4.1 install
 ```bash
 cp .env.example .env
 # replace the three placeholder values; generate each with: openssl rand -hex 32
-pnpm docker:up
+pnpm docker:up:local
 ```
 
-This starts `mongodb`, `cms`, and `rag`. First boot takes a few minutes while
-Atlas Local initialises its replica set and the CMS image builds.
+Local Compose is `mongodb`, `redis`, `cms`, and `rag` only — no packed Ollama
+and no nginx. Point **chat** at DeepSeek (or another cloud provider) in
+**Admin → RAG Settings**. DeepSeek has no embeddings API, so either run host
+Ollama (`ollama serve` + `nomic-embed-text`) — the CMS uses
+`http://host.docker.internal:11434/v1` — or switch **Embed provider** to
+OpenAI, Google, or OpenRouter. First boot takes a few minutes while Atlas
+Local initialises its replica set and the CMS image builds.
+
+```bash
+pnpm docker:seed:local
+```
+
+`pnpm docker:up` is the full stack (adds packed Ollama + nginx) for an
+EC2-like laptop check. Production on EC2 still uses `pnpm docker:deploy:ec2`.
 
 If MongoDB exits immediately on Docker Desktop for Mac (`container docker-mongodb-1
 exited (2)`, logs show `Unable to acquire security key` / missing
@@ -220,7 +232,7 @@ To switch providers, open RAG Settings and pick:
 | Anthropic Claude (`claude-sonnet-4-5`) | Ollama, OpenAI, Google, or OpenRouter (Claude has no embeddings API) |
 | Google Gemini (`gemini-2.0-flash`) | Google (`gemini-embedding-001`, set dimensions to 768) or keep Ollama embeddings |
 | OpenRouter (`openai/gpt-4o-mini`) | OpenRouter (`openai/text-embedding-3-small`, 1536) — use model ids from openrouter.ai/models |
-| DeepSeek (`deepseek-chat`) | Ollama, OpenAI, Google, or OpenRouter (DeepSeek has no embeddings API) |
+| DeepSeek (`deepseek-flash`) | Ollama, OpenAI, Google, or OpenRouter (DeepSeek has no embeddings API) |
 
 Paste the API key in the CMS only. Changing embedding dimensions requires
 dropping `knowledge_vector_index` and re-ingesting every document, then
@@ -455,7 +467,7 @@ in Payload; the user sees a generic unavailable message.
 | Anthropic Claude | `claude-sonnet-4-5` | *(none — use Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
 | Google Gemini | `gemini-2.0-flash` | `gemini-embedding-001` (768) |
 | OpenRouter | `openai/gpt-4o-mini` | `openai/text-embedding-3-small` (1536) |
-| DeepSeek | `deepseek-chat` (or `deepseek-reasoner`) | *(none — keep Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
+| DeepSeek | `deepseek-flash` (or `deepseek-v4-pro`) | *(none — keep Ollama, OpenAI, Google, or OpenRouter for embeddings)* |
 
 In Compose, Payload talks to packed Ollama at `http://ollama:11434/v1`. Models
 are pulled by the `ollama-pull` service. Host-only CMS uses

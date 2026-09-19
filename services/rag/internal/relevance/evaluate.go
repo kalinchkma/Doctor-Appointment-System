@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/example/doctor-appointment-rag/services/rag/internal/lang"
 	"github.com/example/doctor-appointment-rag/services/rag/internal/vectorstore"
 )
 
@@ -64,7 +65,10 @@ func Evaluate(chunks []vectorstore.ScoredChunk, question string, gates Gates) De
 		}
 	}
 
-	if decision.Coverage < gates.MinCoverage && strong >= 1 {
+	// Bangla questions against English PDFs have no lexical overlap; a strong
+	// vector hit is enough — the LLM translates from the passages.
+	crossLingual := lang.CrossLingualQuestion(question)
+	if !crossLingual && decision.Coverage < gates.MinCoverage && strong >= 1 {
 		decision.Reason = ReasonLowCoverage
 		return decision
 	}

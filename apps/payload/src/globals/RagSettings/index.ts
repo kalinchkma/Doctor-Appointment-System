@@ -61,7 +61,7 @@ export const RagSettings: GlobalConfig = {
           type: 'text',
           admin: {
             description:
-              'Leave blank for the provider default. DeepSeek: https://api.deepseek.com/v1. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta. Compose Ollama: http://ollama:11434/v1. Host Ollama: http://127.0.0.1:11434/v1.',
+              'Leave blank for the provider default. DeepSeek: https://api.deepseek.com. OpenRouter: https://openrouter.ai/api/v1. Google: https://generativelanguage.googleapis.com/v1beta. Compose Ollama: http://ollama:11434/v1. Host Ollama: http://127.0.0.1:11434/v1.',
           },
         },
         {
