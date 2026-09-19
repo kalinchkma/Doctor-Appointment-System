@@ -38,8 +38,8 @@ Classify the user's message as exactly one kind:
 Rules:
 - Prefer knowledge when unsure — retrieval will decide if evidence exists.
 - Prefer off_topic only when the question clearly cannot relate to any listed document.
-- "Can you speak Bangla?", "Switch to Bangla", "Reply in English" are identity — not knowledge and not off_topic.
-- Greetings and identity may be English or Bengali (হ্যালো, আসসালামু আলাইকুম, আপনি কে).
+- "Can you speak Bangla?", "Can you speak Banglish?", "Switch to Bangla", "Reply in Banglish", "Reply in English" are identity — not knowledge and not off_topic.
+- Greetings and identity may be English, Bengali script, or Banglish (হ্যালো, kemon acho, আসসালামু আলাইকুম).
 - Reply with ONE JSON object only, no markdown:
 {"kind":"greeting"|"identity"|"knowledge"|"off_topic"}`
 
@@ -159,6 +159,7 @@ var greetingExact = map[string]struct{}{
 	"হ্যালো": {}, "হাই": {}, "নমস্কার": {}, "আসসালামু আলাইকুম": {}, "সালাম": {},
 	"কেমন আছো": {}, "কেমন আছেন": {}, "কেমন আছ": {},
 	"শুভ সকাল": {}, "শুভ সন্ধ্যা": {}, "ধন্যবাদ": {}, "আল্লাহ হাফেজ": {},
+	"kemon acho": {}, "kemon achen": {}, "ki khobor": {}, "assalamualaikum": {},
 }
 
 var identityExact = []string{

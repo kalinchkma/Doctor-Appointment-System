@@ -14,6 +14,7 @@ const QUESTIONS: { question: string; order: number }[] = [
   { question: 'What paracetamol dose is safe in the third trimester?', order: 100 },
   { question: 'গর্ভাবস্থায় কী খাওয়া উচিত?', order: 110 },
   { question: 'গর্ভাবস্থায় কি দুজনের জন্য খেতে হয়?', order: 120 },
+  { question: 'Pregnancy te ki khawa uchit?', order: 130 },
 ]
 
 export async function seedChatQuestions(payload: Payload) {

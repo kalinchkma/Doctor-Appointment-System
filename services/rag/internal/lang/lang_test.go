@@ -1,6 +1,9 @@
 package lang
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLooksBengali(t *testing.T) {
 	if !LooksBengali("গর্ভাবস্থায় কী খাব?") {
@@ -53,11 +56,52 @@ func TestInsufficientAnswerLanguage(t *testing.T) {
 	}
 }
 
+func TestLooksBanglush(t *testing.T) {
+	if !LooksBanglush("ami ki khabo pregnancy te") {
+		t.Fatal("expected banglush")
+	}
+	if LooksBanglush("What should I eat during pregnancy?") {
+		t.Fatal("plain English is not banglush")
+	}
+	if LooksBanglush("গর্ভাবস্থায় কী খাব?") {
+		t.Fatal("Bengali script is Bangla, not Banglush")
+	}
+}
+
+func TestResolveBanglushSwitchSticks(t *testing.T) {
+	pref := Resolve("What should I eat during pregnancy?", []Turn{
+		{Role: "user", Content: "Reply in banglush"},
+	})
+	if pref.Code != "bl" || !strings.Contains(pref.Name, "Banglish") {
+		t.Fatalf("expected banglish after switch, got %+v", pref)
+	}
+}
+
+func TestBanglushCapabilityDoesNotLock(t *testing.T) {
+	pref := Resolve("Can you speak banglush?", nil)
+	if pref.Code == "bl" {
+		t.Fatal("capability in English should not lock Banglush")
+	}
+	if !IsLanguageTurn("Can you speak banglush?") {
+		t.Fatal("expected language-only turn")
+	}
+}
+
+func TestBanglushNotConfusedWithBangla(t *testing.T) {
+	pref := Resolve("Please switch to banglush", nil)
+	if pref.Code != "bl" {
+		t.Fatalf("banglush switch matched %+v", pref)
+	}
+}
+
 func TestCrossLingualIgnoresEnglishSwitchPhrase(t *testing.T) {
 	if CrossLingualQuestion("Switch to bangla. What paracetamol dosage is safe?") {
 		t.Fatal("English question with a switch phrase is not cross-lingual")
 	}
 	if !CrossLingualQuestion("গর্ভাবস্থায় কী খাওয়া উচিত?") {
 		t.Fatal("Bengali script is cross-lingual")
+	}
+	if !CrossLingualQuestion("pregnancy te ki khabo") {
+		t.Fatal("Banglush is cross-lingual")
 	}
 }

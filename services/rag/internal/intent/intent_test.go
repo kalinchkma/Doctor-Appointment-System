@@ -19,6 +19,7 @@ func TestClassifyHeuristicIdentity(t *testing.T) {
 	for _, q := range []string{
 		"Who are you?", "what can you do", "How can you help me?", "আপনি কে", "তুমি কি করতে পারো",
 		"Can you speak bangla??", "Switch to bangla", "Please reply in English",
+		"Can you speak banglush?", "Reply in banglish",
 	} {
 		if got := ClassifyHeuristic(q); got != KindIdentity {
 			t.Fatalf("%q => %s, want identity", q, got)

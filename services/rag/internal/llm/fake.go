@@ -116,7 +116,12 @@ func scriptedTriage(user string) string {
 		strings.Contains(msg, "speak bengali"),
 		strings.Contains(msg, "switch to bangla"),
 		strings.Contains(msg, "reply in bangla"),
-		strings.Contains(msg, "talk in bangla"):
+		strings.Contains(msg, "talk in bangla"),
+		strings.Contains(msg, "speak banglush"),
+		strings.Contains(msg, "speak banglish"),
+		strings.Contains(msg, "switch to banglush"),
+		strings.Contains(msg, "reply in banglush"),
+		strings.Contains(msg, "reply in banglish"):
 		return `{"kind":"identity"}`
 	case msg == "hi", msg == "hello", msg == "hey", msg == "good morning",
 		msg == "thanks", msg == "thank you", msg == "hi there", msg == "hello there":
