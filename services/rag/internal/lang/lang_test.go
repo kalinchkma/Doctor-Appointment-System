@@ -54,6 +54,9 @@ func TestInsufficientAnswerLanguage(t *testing.T) {
 	if InsufficientAnswer("গর্ভাবস্থায় কী খাব?") != InsufficientBN {
 		t.Fatal("bangla fallback")
 	}
+	if InsufficientAnswer("bachchake koy maash theke solid deya shuru korbo?") != InsufficientBN {
+		t.Fatal("banglish question should use Bangla-script fallback")
+	}
 }
 
 func TestLooksBanglush(t *testing.T) {
@@ -71,6 +74,13 @@ func TestLooksBanglush(t *testing.T) {
 	}
 	if LooksBanglush("গর্ভাবস্থায় কী খাব?") {
 		t.Fatal("Bengali script is Bangla, not Banglush")
+	}
+}
+
+func TestResolveBanglishQuestionAnswersInBangla(t *testing.T) {
+	pref := Resolve("bachchake koy maash theke solid deya shuru korbo?", nil)
+	if pref.Code != "bn" {
+		t.Fatalf("banglish question should reply in Bangla script, got %+v", pref)
 	}
 }
 

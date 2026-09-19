@@ -138,7 +138,8 @@ func Resolve(question string, history []Turn) Preference {
 		return Bengali
 	}
 	if LooksBanglush(question) {
-		return Banglush
+		// Typed in English letters, answered in Bangla script.
+		return Bengali
 	}
 	for i := len(history) - 1; i >= 0; i-- {
 		if !strings.EqualFold(strings.TrimSpace(history[i].Role), "user") {
@@ -152,7 +153,7 @@ func Resolve(question string, history []Turn) Preference {
 			return Bengali
 		}
 		if LooksBanglush(text) {
-			return Banglush
+			return Bengali
 		}
 	}
 	return Follow

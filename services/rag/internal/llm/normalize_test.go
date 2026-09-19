@@ -14,8 +14,8 @@ func TestParseNormalizedQuery(t *testing.T) {
 }
 
 func TestPreferenceFromDetect(t *testing.T) {
-	if PreferenceFromDetect("banglish", lang.Follow).Code != "bl" {
-		t.Fatal("banglish should map to Banglush")
+	if PreferenceFromDetect("banglish", lang.Follow).Code != "bn" {
+		t.Fatal("banglish questions should be answered in Bangla script")
 	}
 	if PreferenceFromDetect("bn", lang.Follow).Code != "bn" {
 		t.Fatal("bn should map to Bengali")

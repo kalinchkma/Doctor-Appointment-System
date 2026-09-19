@@ -15,6 +15,7 @@ Detect the user's language:
 - bn: Bengali written in Bengali script
 - banglish: Bangla written in English/Latin letters (romanized), e.g. "bachchake koy maash theke solid deya shuru korbo"
 Then rewrite the question as clear English for search. Keep the medical meaning. Do not answer it.
+The assistant will answer Banglish questions in Bengali script, not romanized Banglish.
 Reply with ONE JSON object only:
 {"language":"en"|"bn"|"banglish","english":"..."}
 If the question is already English, copy it into english.`
@@ -55,7 +56,8 @@ func PreferenceFromDetect(code string, fallback lang.Preference) lang.Preference
 	case "bn", "bangla", "bengali":
 		return lang.Bengali
 	case "bl", "banglish", "banglush":
-		return lang.Banglush
+		// Search used English; the user still gets a Bangla-script reply.
+		return lang.Bengali
 	case "en", "english":
 		if fallback.Code != "" {
 			return fallback

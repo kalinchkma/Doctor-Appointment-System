@@ -139,7 +139,7 @@ func TestAskBanglishRetrievesViaEnglish(t *testing.T) {
 		config.Config{MinScore: 0.5, StrongScore: 0.58, MinChunks: 1, MinCoverage: 0.25},
 		store,
 		llm.FakeEmbedder{Dim: 8},
-		llm.ScriptedGenerator{Response: `{"sufficient":true,"answer":"6 maash theke solid khabar deya shuru kora jaye.","source_chunk_ids":["feed:1"]}`},
+		llm.ScriptedGenerator{Response: `{"sufficient":true,"answer":"৬ মাস থেকে শিশুর জন্য কঠিন খাবার শুরু করা যায়।","source_chunk_ids":["feed:1"]}`},
 		nil,
 	)
 	got, err := pipe.Ask(context.Background(), "bachchake koy maash theke solid deya shuru korbo?")
@@ -149,8 +149,8 @@ func TestAskBanglishRetrievesViaEnglish(t *testing.T) {
 	if !got.Sufficient {
 		t.Fatalf("Banglish question should retrieve English docs after normalize, got %+v", got)
 	}
-	if !strings.Contains(got.Answer, "maash") {
-		t.Fatalf("expected Banglish answer, got %q", got.Answer)
+	if !strings.Contains(got.Answer, "মাস") {
+		t.Fatalf("expected Bangla-script answer, got %q", got.Answer)
 	}
 }
 
