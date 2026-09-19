@@ -1654,6 +1654,12 @@
   font-size: 0.9rem;
 }
 
+.clinic-send-error {
+  margin: 0 0 8px;
+  padding: 0 4px;
+  font-size: 0.85rem;
+}
+
 .sources {
   margin: 10px 0 0;
   padding-left: 18px;

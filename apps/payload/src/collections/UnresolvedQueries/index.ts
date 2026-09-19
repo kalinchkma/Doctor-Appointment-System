@@ -1,10 +1,7 @@
-import type { CollectionBeforeChangeHook, CollectionConfig, Endpoint } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
 import { APIError } from 'payload'
-import { z } from 'zod'
 import { admins } from '../../access'
-import { errors, json, toErrorResponse } from '../../lib/errors'
 import {
-  appendClinicThreadMessage,
   clinicThreadMessage,
   hydrateClinicThread,
   lastStaffBody,
@@ -12,8 +9,9 @@ import {
   normalizeQuestionKey,
 } from '../../lib/unresolvedQueries'
 
-const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc }) => {
+const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc, context }) => {
   if (!data) return data
+  if (context.skipThreadStamp) return data
 
   const question = String(data.question ?? originalDoc?.question ?? '')
   if (question) {
@@ -81,60 +79,6 @@ const stampResolution: CollectionBeforeChangeHook = ({ data, req, originalDoc })
   return data
 }
 
-const messageSchema = z.object({
-  content: z
-    .string({ error: 'A message is required.' })
-    .trim()
-    .min(1, 'A message is required.')
-    .max(2000, 'Messages must be 2000 characters or fewer.'),
-})
-
-function queryIdFromReq(req: { routeParams?: { id?: unknown }; pathname?: string; url?: string }) {
-  const fromParams = req.routeParams?.id
-  if (fromParams != null && String(fromParams).length > 0) return String(fromParams)
-  const path = req.pathname || req.url || ''
-  const match = path.match(/\/unresolved-queries\/([^/?#]+)\/messages/)
-  return match?.[1] ? decodeURIComponent(match[1]) : ''
-}
-
-const adminReply: Endpoint = {
-  path: '/:id/messages',
-  method: 'post',
-  handler: async (req) => {
-    try {
-      if (req.user?.role !== 'admin') {
-        throw errors.forbidden()
-      }
-      const id = queryIdFromReq(req)
-      if (!id) throw errors.invalidInput('A query id is required.')
-
-      let body: unknown = req.data
-      if (typeof req.json === 'function') {
-        try {
-          const parsed = await req.json()
-          if (parsed !== undefined) body = parsed
-        } catch {
-          /* use req.data */
-        }
-      }
-      const parsed = messageSchema.safeParse(body)
-      if (!parsed.success) {
-        throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
-      }
-
-      const next = await appendClinicThreadMessage(req.payload, {
-        queryId: id,
-        role: 'staff',
-        body: parsed.data.content,
-        authorId: String(req.user.id),
-      })
-      return json(next)
-    } catch (error) {
-      return toErrorResponse(error, req.payload, 'unresolved.adminReply')
-    }
-  },
-}
-
 export const UnresolvedQueries: CollectionConfig = {
   slug: 'unresolved-queries',
   admin: {
@@ -145,7 +89,6 @@ export const UnresolvedQueries: CollectionConfig = {
       'Questions the assistant could not answer. Chat with the patient in the thread — they reply on the Clinic replies tab.',
   },
   timestamps: true,
-  endpoints: [adminReply],
   hooks: { beforeChange: [stampResolution] },
   access: { create: () => false, read: admins, update: admins, delete: admins },
   fields: [

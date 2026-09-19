@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   IonButton,
   IonContent,
@@ -10,23 +10,38 @@ import {
   IonToolbar,
 } from '@ionic/react'
 import { send } from 'ionicons/icons'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { messageFor } from '../hooks/useAsync'
 import { getClinicReply, sendClinicReplyMessage } from '../services/api/chat'
 import type { ClinicReply, ClinicThreadMessage } from '../types'
 
+function threadIdFromPath(pathname: string, param?: string): string {
+  if (param?.trim()) return param.trim()
+  const match = pathname.match(/\/clinic-replies\/([^/?#]+)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
+}
+
 export function ClinicReplyThread() {
-  const { queryId } = useParams<{ queryId: string }>()
+  const { queryId: paramId } = useParams<{ queryId: string }>()
+  const { pathname } = useLocation()
+  const queryId = useMemo(() => threadIdFromPath(pathname, paramId), [pathname, paramId])
   const [thread, setThread] = useState<ClinicReply | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async (silent = false) => {
-    if (!queryId) return
+    if (!queryId) {
+      if (!silent) {
+        setError('That conversation could not be opened.')
+        setLoading(false)
+      }
+      return
+    }
     if (!silent) setLoading(true)
     try {
       const next = await getClinicReply(queryId)
@@ -55,17 +70,18 @@ export function ClinicReplyThread() {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread?.messages?.length, sending])
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault()
     const content = draft.trim()
     if (!content || !queryId || sending) return
     setSending(true)
+    setSendError(null)
     try {
       const next = await sendClinicReplyMessage(queryId, content)
       setThread(next)
       setDraft('')
     } catch (reason) {
-      setError(messageFor(reason))
+      setSendError(messageFor(reason))
     } finally {
       setSending(false)
     }
@@ -114,6 +130,7 @@ export function ClinicReplyThread() {
       </IonContent>
       <IonFooter>
         <IonToolbar className="ion-padding-horizontal chat-toolbar">
+          {sendError && <p className="failed clinic-send-error">{sendError}</p>}
           <form onSubmit={(event) => void submit(event)} className="chat-form">
             <IonInput
               value={draft}
@@ -124,7 +141,7 @@ export function ClinicReplyThread() {
             />
             <IonButton
               type="submit"
-              disabled={sending || loading || !draft.trim()}
+              disabled={sending || loading || !queryId || !draft.trim()}
               aria-label="Send"
             >
               <IonIcon slot="icon-only" icon={send} />

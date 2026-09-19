@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { ApiError, ErrorCode, errors } from './errors'
 
 export type RetrievalReason = 'no_results' | 'below_threshold' | 'low_coverage' | 'llm_declined'
 
@@ -70,6 +71,15 @@ export function clinicThreadMessage(
     author: author || null,
     createdAt,
   }
+}
+
+function persistThread(thread: ClinicThreadMessage[]) {
+  return trimThread(thread).map((message) => ({
+    role: message.role,
+    body: message.body,
+    createdAt: message.createdAt,
+    ...(message.author ? { author: message.author } : {}),
+  }))
 }
 
 export function parseThread(value: unknown): ClinicThreadMessage[] {
@@ -266,17 +276,22 @@ export async function appendClinicThreadMessage(
 ) {
   const body = input.body.trim()
   if (!body) {
-    throw new Error('EMPTY_CLINIC_REPLY')
+    throw errors.invalidInput('A message is required.')
   }
 
-  const doc = await payload.findByID({
-    collection: 'unresolved-queries',
-    id: input.queryId,
-    depth: 0,
-    overrideAccess: true,
-  })
+  const doc = await payload
+    .findByID({
+      collection: 'unresolved-queries',
+      id: input.queryId,
+      depth: 0,
+      overrideAccess: true,
+    })
+    .catch(() => null)
+  if (!doc) {
+    throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
+  }
 
-  const thread = trimThread([
+  const thread = persistThread([
     ...hydrateClinicThread(doc),
     clinicThreadMessage(input.role, body, input.authorId),
   ])
@@ -289,6 +304,7 @@ export async function appendClinicThreadMessage(
     id: input.queryId,
     depth: 0,
     overrideAccess: true,
+    context: { skipThreadStamp: true },
     data: {
       thread,
       humanResponse: staffBody,

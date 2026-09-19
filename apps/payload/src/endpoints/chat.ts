@@ -330,15 +330,18 @@ const clinicReplyMessage: Endpoint = {
   handler: async (req) => {
     try {
       const user = requireUser(req)
-      if (rateLimited(String(user.id))) {
+      if (user.role !== 'admin' && rateLimited(String(user.id))) {
         throw new ApiError(ErrorCode.INVALID_INPUT, 429, 'Please wait a moment before sending again.')
       }
       const id = clinicReplyIdFromReq(req)
       if (!id) throw errors.invalidInput('A clinic reply id is required.')
 
-      const owned = await findOwnedClinicQuery(req.payload, id, String(user.id))
-      if (!owned) {
-        throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
+      const isAdmin = user.role === 'admin'
+      if (!isAdmin) {
+        const owned = await findOwnedClinicQuery(req.payload, id, String(user.id))
+        if (!owned) {
+          throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
+        }
       }
 
       const parsed = clinicMessageSchema.safeParse(await readJsonBody(req))
@@ -348,7 +351,7 @@ const clinicReplyMessage: Endpoint = {
 
       const next = await appendClinicThreadMessage(req.payload, {
         queryId: id,
-        role: 'patient',
+        role: isAdmin ? 'staff' : 'patient',
         body: parsed.data.content,
         authorId: String(user.id),
       })

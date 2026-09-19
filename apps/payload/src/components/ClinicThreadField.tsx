@@ -44,8 +44,8 @@ export function ClinicThreadField() {
     return () => window.clearInterval(tick)
   }, [id, setValue])
 
-  const send = async (event: FormEvent) => {
-    event.preventDefault()
+  const send = async (event?: FormEvent) => {
+    event?.preventDefault()
     const content = draft.trim()
     if (!content || sending) return
     if (!id) {
@@ -56,7 +56,7 @@ export function ClinicThreadField() {
     setSending(true)
     setError('')
     try {
-      const response = await fetch(`/api/unresolved-queries/${id}/messages`, {
+      const response = await fetch(`/api/chat/clinic-replies/${id}/messages`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -68,12 +68,18 @@ export function ClinicThreadField() {
         message?: string
       }
       if (!response.ok) {
-        throw new Error(body.message || 'Could not send that reply.')
+        throw new Error(body.message || `Could not send that reply (HTTP ${response.status}).`)
       }
-      setValue(body.messages ?? body.thread ?? [
-        ...messages,
-        { role: 'staff', body: content, createdAt: new Date().toISOString() },
-      ])
+      if (Array.isArray(body.messages) && body.messages.length > 0) {
+        setValue(body.messages)
+      } else if (Array.isArray(body.thread)) {
+        setValue(body.thread)
+      } else {
+        setValue([
+          ...messages,
+          { role: 'staff', body: content, createdAt: new Date().toISOString() },
+        ])
+      }
       setDraft('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not send that reply.')
