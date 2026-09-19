@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { useAsync } from '../hooks/useAsync'
 import { listMyAppointments } from '../services/api/appointments'
 import { formatDateTime } from '../lib/datetime'
@@ -89,6 +90,7 @@ export function MyAppointments() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={reload} />
       <ScreenHeader title="My Appointments" />
       <IonContent>
         <IonRefresher slot="fixed" onIonRefresh={refresh}>

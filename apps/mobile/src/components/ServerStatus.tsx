@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
-import { IonButton } from '@ionic/react'
+import { IonButton, useIonViewWillEnter } from '@ionic/react'
 import { baseURL } from '../services/api/client'
 
 type Status = 'checking' | 'online' | 'offline'
@@ -64,6 +64,10 @@ export function ServerStatus() {
       generation.current += 1
     }
   }, [check])
+
+  useIonViewWillEnter(() => {
+    void check()
+  })
 
   const label =
     status === 'checking' ? 'Checking…' : status === 'online' ? 'Reachable' : 'Unreachable'

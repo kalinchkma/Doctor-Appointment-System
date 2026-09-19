@@ -1,19 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import {
-  IonButton,
-  IonContent,
-  IonFooter,
-  IonIcon,
-  IonInput,
-  IonPage,
-  IonSpinner,
-  IonToolbar,
-} from '@ionic/react'
-import { send } from 'ionicons/icons'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IonButton, IonContent, IonPage, IonSpinner } from '@ionic/react'
 import { useLocation, useParams } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { messageFor } from '../hooks/useAsync'
-import { getClinicReply, sendClinicReplyMessage } from '../services/api/chat'
+import { getClinicReply } from '../services/api/chat'
 import type { ClinicReply, ClinicThreadMessage } from '../types'
 
 function threadIdFromPath(pathname: string, param?: string): string {
@@ -29,9 +20,6 @@ export function ClinicReplyThread() {
   const [thread, setThread] = useState<ClinicReply | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async (silent = false) => {
@@ -68,29 +56,14 @@ export function ClinicReplyThread() {
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [thread?.messages?.length, sending])
-
-  const submit = async (event?: FormEvent) => {
-    event?.preventDefault()
-    const content = draft.trim()
-    if (!content || !queryId || sending) return
-    setSending(true)
-    setSendError(null)
-    try {
-      const next = await sendClinicReplyMessage(queryId, content)
-      setThread(next)
-      setDraft('')
-    } catch (reason) {
-      setSendError(messageFor(reason))
-    } finally {
-      setSending(false)
-    }
-  }
+  }, [thread?.messages?.length])
 
   const messages: ClinicThreadMessage[] = thread?.messages ?? []
+  const waiting = !thread?.humanResponse
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={() => void load(true)} />
       <ScreenHeader title="Clinic conversation" backTo="/clinic-replies" />
       <IonContent className="ion-padding">
         {loading ? (
@@ -119,36 +92,15 @@ export function ClinicReplyThread() {
                 <p>{message.body}</p>
               </div>
             ))}
-            {sending && (
-              <div className="bubble assistant">
-                <IonSpinner name="dots" />
-              </div>
+            {waiting && (
+              <p className="clinic-replies-intro">
+                Waiting for a clinic reply. Only clinic staff can answer this question.
+              </p>
             )}
             <div ref={bottom} />
           </div>
         )}
       </IonContent>
-      <IonFooter>
-        <IonToolbar className="ion-padding-horizontal chat-toolbar">
-          {sendError && <p className="failed clinic-send-error">{sendError}</p>}
-          <form onSubmit={(event) => void submit(event)} className="chat-form">
-            <IonInput
-              value={draft}
-              placeholder="Reply to the clinic"
-              aria-label="Reply to the clinic"
-              disabled={loading || !queryId}
-              onIonInput={(event) => setDraft(event.detail.value ?? '')}
-            />
-            <IonButton
-              type="submit"
-              disabled={sending || loading || !queryId || !draft.trim()}
-              aria-label="Send"
-            >
-              <IonIcon slot="icon-only" icon={send} />
-            </IonButton>
-          </form>
-        </IonToolbar>
-      </IonFooter>
     </IonPage>
   )
 }

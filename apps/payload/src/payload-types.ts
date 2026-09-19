@@ -390,15 +390,6 @@ export interface UnresolvedQuery {
   user: string | User;
   sessionId?: string | null;
   status: 'new' | 'resolved';
-  thread?:
-    | {
-        role: 'patient' | 'staff';
-        body: string;
-        author?: (string | null) | User;
-        createdAt?: string | null;
-        id?: string | null;
-      }[]
-    | null;
   humanResponse?: string | null;
   /**
    * Why the sufficiency gates declined to answer.
@@ -410,7 +401,7 @@ export interface UnresolvedQuery {
   topScore?: number | null;
   resolvedAt?: string | null;
   /**
-   * When the clinic reply was written into the patient’s chat session.
+   * When the clinic reply was saved for the patient to read.
    */
   deliveredAt?: string | null;
   reviewedBy?: (string | null) | User;
@@ -712,7 +703,6 @@ export interface UnresolvedQueriesSelect<T extends boolean = true> {
   user?: T;
   sessionId?: T;
   status?: T;
-  thread?: T;
   humanResponse?: T;
   retrievalReason?: T;
   topScore?: T;

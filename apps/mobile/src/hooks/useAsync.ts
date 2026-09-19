@@ -18,20 +18,22 @@ export function messageFor(reason: unknown): string {
  * Loads data on mount and exposes loading, error, and reload so every screen can render
  * the same four states. Booking conflicts in particular need a cheap way to refresh.
  *
- * State is tagged with the request it belongs to and `loading` is derived by comparing
- * that tag to the current request, rather than being reset from inside the effect. That
- * keeps the reset out of the render path and means a stale response can never be shown
- * against newer inputs.
+ * Reload keeps the last good payload on screen so tab switches and ionViewWillEnter
+ * do not flash an empty loading state.
  */
 export function useAsync<T>(loader: () => Promise<T>, deps: unknown[] = []): AsyncState<T> {
   const [nonce, setNonce] = useState(0)
-  const [settled, setSettled] = useState<{ key: string; data: T | null; error: string | null }>({
-    key: '',
+  const [settled, setSettled] = useState<{
+    requestKey: string
+    data: T | null
+    error: string | null
+  }>({
+    requestKey: '',
     data: null,
     error: null,
   })
 
-  const key = `${nonce}:${JSON.stringify(deps)}`
+  const requestKey = `${nonce}:${JSON.stringify(deps)}`
   const reload = useCallback(() => setNonce((value) => value + 1), [])
 
   useEffect(() => {
@@ -39,23 +41,29 @@ export function useAsync<T>(loader: () => Promise<T>, deps: unknown[] = []): Asy
 
     loader()
       .then((data) => {
-        if (!cancelled) setSettled({ key, data, error: null })
+        if (!cancelled) setSettled({ requestKey, data, error: null })
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setSettled({ key, data: null, error: messageFor(reason) })
+        if (!cancelled) {
+          setSettled((previous) => ({
+            requestKey,
+            data: previous.data,
+            error: previous.data ? null : messageFor(reason),
+          }))
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [key, loader])
+  }, [requestKey, loader])
 
-  const current = settled.key === key
+  const current = settled.requestKey === requestKey
 
   return {
-    data: current ? settled.data : null,
-    loading: !current,
-    error: current ? settled.error : null,
+    data: settled.data,
+    loading: !current && settled.data == null,
+    error: current ? settled.error : settled.data ? null : settled.error,
     reload,
   }
 }

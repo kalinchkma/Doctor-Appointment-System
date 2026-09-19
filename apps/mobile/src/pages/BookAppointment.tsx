@@ -20,6 +20,7 @@ import { arrowBack, arrowForward, checkmarkCircle, time, person, clipboard } fro
 import { useNavigate, useParams } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { messageFor, useAsync } from '../hooks/useAsync'
 import { useAuth } from '../hooks/useAuth'
 import { bookAppointment } from '../services/api/appointments'
@@ -420,6 +421,7 @@ export function BookAppointment() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={reload} />
       <IonHeader>
         <IonToolbar>
           <IonButton

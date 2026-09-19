@@ -13,6 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { useAsync } from '../hooks/useAsync'
 import { getAppointment } from '../services/api/appointments'
 import { formatDateTime } from '../lib/datetime'
@@ -35,6 +36,7 @@ export function BookingConfirmation() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={reload} />
       <ScreenHeader title="Booking Confirmed" backTo="/home" />
       <IonContent>
         <AsyncContent loading={loading} error={error} onRetry={reload}>

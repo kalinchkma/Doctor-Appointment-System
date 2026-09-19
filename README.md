@@ -512,10 +512,10 @@ it creates an `unresolved-queries` row with `overrideAccess` (`create` stays
 closed to clients) and stores `retrievalReason` plus `topScore` so the admin
 list is a tuning tool, not just a inbox.
 
-Admins open **Unresolved Queries** and chat in the thread. Patients reply on
-the mobile **Clinic replies** tab (`GET/POST /api/chat/clinic-replies/:id`).
-The last clinic message is stored as `humanResponse`. A patient follow-up
-reopens the row as waiting. The RAG assistant chat is left untouched.
+Admins open **Unresolved Queries**, type a `humanResponse`, and save. That
+marks the row resolved. Patients can only **read** the reply on the mobile
+**Clinic replies** tab (`GET /api/chat/clinic-replies`). Patients cannot write
+back. The RAG assistant chat is left untouched.
 
 If the Go service is down or the LLM provider fails, the user gets HTTP 503/502
 with a safe message and **no** unresolved row is written — that path is an

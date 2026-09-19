@@ -14,6 +14,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { messageFor } from '../hooks/useAsync'
 import { formatDateTime } from '../lib/datetime'
 import { listClinicReplies } from '../services/api/chat'
@@ -86,6 +87,7 @@ export function ClinicReplies() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={() => void load(true)} />
       <ScreenHeader title="Clinic replies" />
       <IonContent>
         <IonRefresher slot="fixed" onIonRefresh={refresh}>
@@ -115,8 +117,8 @@ export function ClinicReplies() {
 
         <div className="appointments-content">
           <p className="clinic-replies-intro">
-            Questions the assistant could not answer. Open a thread to chat with a clinician — this
-            is separate from the healthcare assistant.
+            Questions the assistant could not answer. Clinic staff reply here — this is separate
+            from the healthcare assistant.
           </p>
           <AsyncContent
             loading={loading}
@@ -151,7 +153,7 @@ export function ClinicReplies() {
                   <p className="clinic-reply-pending">
                     {item.lastBody
                       ? `${item.lastRole === 'staff' ? 'Clinic' : 'You'}: ${item.lastBody}`
-                      : 'Open to chat with the clinic.'}
+                      : 'Waiting for a clinic reply.'}
                   </p>
                 </IonCardContent>
               </IonCard>

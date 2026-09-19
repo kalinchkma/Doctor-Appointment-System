@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { useAsync } from '../hooks/useAsync'
 import { listDoctors } from '../services/api/doctors'
 
@@ -48,6 +49,7 @@ export function Doctors() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={reload} />
       <ScreenHeader title="Find a Doctor" />
       <IonContent>
         <div className="doctors-header">

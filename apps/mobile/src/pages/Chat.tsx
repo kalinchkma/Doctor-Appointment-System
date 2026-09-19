@@ -16,6 +16,7 @@ import {
 import { createOutline, send } from 'ionicons/icons'
 import { useNavigate } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { messageFor } from '../hooks/useAsync'
 import {
   askChatbot,
@@ -67,9 +68,11 @@ export function Chat() {
   const [selectedSuggestion, setSelectedSuggestion] = useState('')
   const bottom = useRef<HTMLDivElement>(null)
 
-  const loadSession = useCallback(async () => {
-    setLoadingSession(true)
-    setSessionError(null)
+  const loadSession = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoadingSession(true)
+      setSessionError(null)
+    }
     try {
       let session = await getActiveChatSession().catch(() => null)
       if (!session) {
@@ -77,12 +80,15 @@ export function Chat() {
       }
       setSessionId(session.id)
       setMessages(fromSessionMessages(session.messages))
+      setSessionError(null)
     } catch (reason) {
-      setSessionId(null)
-      setSessionError(messageFor(reason))
-      setMessages([greeting])
+      if (!silent) {
+        setSessionId(null)
+        setSessionError(messageFor(reason))
+        setMessages([greeting])
+      }
     } finally {
-      setLoadingSession(false)
+      if (!silent) setLoadingSession(false)
     }
   }, [])
 
@@ -193,6 +199,7 @@ export function Chat() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={() => { if (!thinking) void loadSession(true) }} />
       <ScreenHeader
         title="Healthcare assistant"
         actions={

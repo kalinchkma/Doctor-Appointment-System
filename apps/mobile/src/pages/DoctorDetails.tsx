@@ -14,6 +14,7 @@ import { AsyncContent } from '../components/AsyncContent'
 import { DoctorAvatar } from '../components/DoctorAvatar'
 import { DoctorMap } from '../components/DoctorMap'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ViewEnterReload } from '../components/ViewEnterReload'
 import { messageFor, useAsync } from '../hooks/useAsync'
 import { useAuth } from '../hooks/useAuth'
 import { listMyAppointments } from '../services/api/appointments'
@@ -122,6 +123,7 @@ export function DoctorDetails() {
 
   return (
     <IonPage>
+      <ViewEnterReload onEnter={reload} />
       <ScreenHeader title="Doctor details" backTo="/doctors" />
       <IonContent className="ion-padding">
         <AsyncContent loading={loading} error={error} onRetry={reload}>

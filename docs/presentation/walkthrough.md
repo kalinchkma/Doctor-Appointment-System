@@ -75,7 +75,7 @@ Expected: still fallback, not a confident wrong answer. Coverage gate exists for
 
 ## 8. RAG Test 4 — human resolution
 
-In admin: open the unresolved row and chat in the thread. The patient replies on the **Clinic replies** tab. The RAG assistant chat stays separate.
+In admin: open the unresolved row, type a clinic reply (`humanResponse`), and save. The patient sees it on the **Clinic replies** tab and cannot write back. The RAG assistant chat stays separate.
 
 Expected: `resolvedAt` / `reviewedBy` stamped by hook. No notification system (out of scope).
 

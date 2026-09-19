@@ -10,7 +10,6 @@ import {
   resetChatSession,
 } from '../lib/chatSessions'
 import {
-  appendClinicThreadMessage,
   findOwnedClinicQuery,
   listClinicRepliesForUser,
   recordUnresolvedQuery,
@@ -275,14 +274,6 @@ export const chatEndpoint: Endpoint = {
   },
 }
 
-const clinicMessageSchema = z.object({
-  content: z
-    .string({ error: 'A message is required.' })
-    .trim()
-    .min(1, 'A message is required.')
-    .max(2000, 'Messages must be 2000 characters or fewer.'),
-})
-
 function clinicReplyIdFromReq(req: PayloadRequest): string {
   const fromParams = req.routeParams?.id
   if (fromParams != null && String(fromParams).length > 0) return String(fromParams)
@@ -324,50 +315,11 @@ const clinicReply: Endpoint = {
   },
 }
 
-const clinicReplyMessage: Endpoint = {
-  path: '/chat/clinic-replies/:id/messages',
-  method: 'post',
-  handler: async (req) => {
-    try {
-      const user = requireUser(req)
-      if (user.role !== 'admin' && rateLimited(String(user.id))) {
-        throw new ApiError(ErrorCode.INVALID_INPUT, 429, 'Please wait a moment before sending again.')
-      }
-      const id = clinicReplyIdFromReq(req)
-      if (!id) throw errors.invalidInput('A clinic reply id is required.')
-
-      const isAdmin = user.role === 'admin'
-      if (!isAdmin) {
-        const owned = await findOwnedClinicQuery(req.payload, id, String(user.id))
-        if (!owned) {
-          throw new ApiError(ErrorCode.INVALID_INPUT, 404, 'That clinic conversation could not be found.')
-        }
-      }
-
-      const parsed = clinicMessageSchema.safeParse(await readJsonBody(req))
-      if (!parsed.success) {
-        throw errors.invalidInput(parsed.error.issues[0]?.message ?? 'The request body is invalid.')
-      }
-
-      const next = await appendClinicThreadMessage(req.payload, {
-        queryId: id,
-        role: isAdmin ? 'staff' : 'patient',
-        body: parsed.data.content,
-        authorId: String(user.id),
-      })
-      return json(next)
-    } catch (error) {
-      return toErrorResponse(error, req.payload, 'chat.clinicReply.message')
-    }
-  },
-}
-
 export const chatEndpoints: Endpoint[] = [
   createSession,
   activeSession,
   getSession,
   resetSession,
-  clinicReplyMessage,
   clinicReply,
   clinicReplies,
   chatEndpoint,
