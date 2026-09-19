@@ -60,6 +60,12 @@ func TestLooksBanglush(t *testing.T) {
 	if !LooksBanglush("ami ki khabo pregnancy te") {
 		t.Fatal("expected banglush")
 	}
+	if !LooksBanglush("bachchake koy maash theke solid deya shuru korbo?") {
+		t.Fatal("expected infant-feeding banglish")
+	}
+	if !LooksBanglush("pregnant obesthay kon kon vitamin beshi joruri?") {
+		t.Fatal("expected pregnancy vitamin banglish")
+	}
 	if LooksBanglush("What should I eat during pregnancy?") {
 		t.Fatal("plain English is not banglush")
 	}

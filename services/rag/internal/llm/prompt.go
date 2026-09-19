@@ -103,6 +103,15 @@ func BuildUserPromptFor(question string, pref lang.Preference, chunks []vectorst
 	return b.String()
 }
 
+func BuildUserPromptSearch(question, english string, pref lang.Preference, chunks []vectorstore.ScoredChunk, history ...HistoryTurn) string {
+	base := BuildUserPromptFor(question, pref, chunks, history...)
+	english = strings.TrimSpace(english)
+	if english == "" || strings.EqualFold(english, strings.TrimSpace(question)) {
+		return base
+	}
+	return strings.TrimSuffix(base, "\n") + "\nEnglish search form:\n" + fence(english) + "\n"
+}
+
 func fence(text string) string {
 	text = strings.ReplaceAll(text, "```", "'''")
 	return text

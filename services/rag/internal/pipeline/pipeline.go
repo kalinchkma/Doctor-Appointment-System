@@ -185,7 +185,20 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 		return p.converse(ctx, kind, question, pref, history)
 	}
 
-	vectors, err := p.embedTexts(ctx, []string{question}, "query")
+	searchQ := question
+	if norm, ok := p.normalizeQuery(ctx, question); ok {
+		searchQ = norm.English
+		if pref.Code == "" {
+			pref = llm.PreferenceFromDetect(norm.Language, pref)
+		}
+		slog.Info("chat query normalized",
+			"detected", norm.Language,
+			"searchQuery", truncate(searchQ, 160),
+			"replyLang", pref.Name,
+		)
+	}
+
+	vectors, err := p.embedTexts(ctx, []string{searchQ}, "query")
 	if err != nil {
 		return ChatResult{}, fmt.Errorf("embed question: %w", err)
 	}
@@ -196,16 +209,16 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 	}
 
 	gates := p.gates(ctx)
-	decision := relevance.Evaluate(hits, question, gates)
+	decision := relevance.Evaluate(hits, searchQ, gates)
 
 	if !decision.Pass && (decision.Reason == relevance.ReasonNoResults || decision.Reason == relevance.ReasonBelowThreshold) {
 		if searcher, ok := p.store.(lexicalSearcher); ok {
-			lex, lexErr := searcher.SearchLexical(ctx, question, 8)
+			lex, lexErr := searcher.SearchLexical(ctx, searchQ, 8)
 			if lexErr != nil {
 				slog.Warn("lexical search failed", "error", lexErr)
 			} else if len(lex) > 0 {
 				hits = mergeHits(hits, lex)
-				decision = relevance.Evaluate(hits, question, gates)
+				decision = relevance.Evaluate(hits, searchQ, gates)
 				slog.Info("chat lexical fallback",
 					"lexHits", len(lex),
 					"merged", len(hits),
@@ -222,6 +235,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 
 	slog.Info("chat retrieval",
 		"question", truncate(question, 120),
+		"searchQuery", truncate(searchQ, 120),
 		"historyTurns", len(history),
 		"hits", len(hits),
 		"kept", len(decision.Kept),
@@ -245,7 +259,7 @@ func (p *Pipeline) Ask(ctx context.Context, question string, history ...llm.Hist
 	}
 
 	genStarted := time.Now()
-	raw, err := p.generate.Generate(ctx, llm.SystemPromptFor(pref), llm.BuildUserPromptFor(question, pref, decision.Kept, history...))
+	raw, err := p.generate.Generate(ctx, llm.SystemPromptFor(pref), llm.BuildUserPromptSearch(question, searchQ, pref, decision.Kept, history...))
 	if err != nil {
 		slog.Error("chat generate failed",
 			"error", err,
@@ -301,6 +315,20 @@ type taskEmbedder interface {
 
 type textGenerator interface {
 	GenerateText(ctx context.Context, system, user string) (string, error)
+}
+
+func (p *Pipeline) normalizeQuery(ctx context.Context, question string) (llm.NormalizedQuery, bool) {
+	raw, err := p.generate.Generate(ctx, llm.NormalizeSystem, llm.NormalizeUser(question))
+	if err != nil {
+		slog.Warn("query normalize failed", "error", err)
+		return llm.NormalizedQuery{}, false
+	}
+	norm, ok := llm.ParseNormalizedQuery(raw)
+	if !ok {
+		slog.Warn("query normalize unparseable", "raw", truncate(raw, 160))
+		return llm.NormalizedQuery{}, false
+	}
+	return norm, true
 }
 
 func (p *Pipeline) embedTexts(ctx context.Context, texts []string, task string) ([][]float32, error) {

@@ -115,6 +115,45 @@ func TestAskLanguageCapabilityUsesModelNotHardcoded(t *testing.T) {
 	}
 }
 
+type memStore struct {
+	hits []vectorstore.ScoredChunk
+}
+
+func (memStore) UpsertMany(context.Context, []vectorstore.Chunk) error { return nil }
+func (memStore) DeleteByDocument(context.Context, string) error        { return nil }
+func (m memStore) Search(context.Context, []float32, int) ([]vectorstore.ScoredChunk, error) {
+	return m.hits, nil
+}
+
+func TestAskBanglishRetrievesViaEnglish(t *testing.T) {
+	store := memStore{hits: []vectorstore.ScoredChunk{{
+		Chunk: vectorstore.Chunk{
+			ID:    "feed:1",
+			Title: "Infant feeding",
+			Page:  1,
+			Text:  "Complementary foods should start at 6 months. Start solid food around six months of age.",
+		},
+		Score: 0.84,
+	}}}
+	pipe := New(
+		config.Config{MinScore: 0.5, StrongScore: 0.58, MinChunks: 1, MinCoverage: 0.25},
+		store,
+		llm.FakeEmbedder{Dim: 8},
+		llm.ScriptedGenerator{Response: `{"sufficient":true,"answer":"6 maash theke solid khabar deya shuru kora jaye.","source_chunk_ids":["feed:1"]}`},
+		nil,
+	)
+	got, err := pipe.Ask(context.Background(), "bachchake koy maash theke solid deya shuru korbo?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Sufficient {
+		t.Fatalf("Banglish question should retrieve English docs after normalize, got %+v", got)
+	}
+	if !strings.Contains(got.Answer, "maash") {
+		t.Fatalf("expected Banglish answer, got %q", got.Answer)
+	}
+}
+
 func TestAskOffTopicUsesConversationalPath(t *testing.T) {
 	pipe := New(
 		config.Config{},

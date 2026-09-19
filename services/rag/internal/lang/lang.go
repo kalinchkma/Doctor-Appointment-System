@@ -50,11 +50,17 @@ var banglushStrong = map[string]struct{}{
 	"bhalo": {}, "valo": {}, "thikase": {},
 	"jonno": {}, "lagbe": {}, "hobe": {}, "korbo": {}, "korben": {},
 	"bolbo": {}, "bolben": {}, "khobor": {},
+	"obestha": {}, "obesthay": {}, "obostha": {}, "obosthay": {},
+	"beshi": {}, "joruri": {}, "uchit": {},
+	"bachcha": {}, "baccha": {}, "bachchake": {}, "bacchake": {}, "baccchake": {},
+	"koy": {}, "maash": {}, "mash": {}, "theke": {},
+	"khabar": {}, "deya": {}, "dite": {}, "shuru": {}, "suru": {},
+	"korte": {}, "pari": {}, "porjonto": {},
 }
 
 var banglushLight = map[string]struct{}{
 	"ki": {}, "nai": {}, "nei": {}, "bolo": {}, "bolen": {}, "thik": {},
-	"acha": {}, "accha": {}, "bhai": {}, "apa": {},
+	"acha": {}, "accha": {}, "bhai": {}, "apa": {}, "kon": {}, "koy": {},
 }
 
 // LooksBengali reports whether the text is written in Bengali script.

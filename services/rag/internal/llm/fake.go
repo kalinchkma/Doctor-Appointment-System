@@ -94,7 +94,35 @@ func (s ScriptedGenerator) Generate(_ context.Context, system, user string) (str
 	if strings.Contains(strings.ToLower(system), "triage classifier") {
 		return scriptedTriage(user), nil
 	}
+	if strings.Contains(strings.ToLower(system), "knowledge-base search") {
+		return scriptedNormalize(user), nil
+	}
 	return s.Response, nil
+}
+
+func scriptedNormalize(user string) string {
+	q := user
+	if i := strings.Index(strings.ToLower(q), "question to normalize:"); i >= 0 {
+		q = strings.TrimSpace(q[i+len("question to normalize:"):])
+	}
+	q = strings.TrimSpace(q)
+	low := strings.ToLower(q)
+	switch {
+	case strings.Contains(low, "bachchake") || strings.Contains(low, "solid deya") || strings.Contains(low, "solid khabar"):
+		return `{"language":"banglish","english":"From what month can I start giving my baby solid food?"}`
+	case strings.Contains(low, "vitamin") && (strings.Contains(low, "obesthay") || strings.Contains(low, "joruri")):
+		return `{"language":"banglish","english":"Which vitamins are most important during pregnancy?"}`
+	case strings.Contains(low, "khawa") || strings.Contains(low, "khabo"):
+		return `{"language":"banglish","english":"What should I eat during pregnancy?"}`
+	default:
+		return `{"language":"en","english":` + jsonQuote(q) + `}`
+	}
+}
+
+func jsonQuote(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }
 
 func scriptedTriage(user string) string {
